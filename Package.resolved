@@ -1,0 +1,24 @@
+{
+  "originHash" : "791e556223cfb006804d2f0d3797b103d301b42a4bf59a3aff701d4934d5cfab",
+  "pins" : [
+    {
+      "identity" : "icon-kit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/rozd/icon-kit",
+      "state" : {
+        "revision" : "02c8c379f88f3e4cba3acf3134bb683ca434c507",
+        "version" : "1.2.1"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
+      }
+    }
+  ],
+  "version" : 3
+}
