@@ -10,6 +10,14 @@ Turn your app icon into a blueprint version, like Xcode's icon, for your debug b
 
 ## Install
 
+With [Homebrew](https://brew.sh), from [MustafaNatur/homebrew-tap](https://github.com/MustafaNatur/homebrew-tap):
+
+```bash
+brew install mustafanatur/tap/blueprint
+```
+
+Or from source:
+
 ```bash
 git clone https://github.com/MustafaNatur/blueprint.git
 cd blueprint
