@@ -13,7 +13,7 @@ extension IconComposerDescriptorFile {
         var assets: [String: Data] = [:]
         for name in referencedImageNames.sorted() {
             let tracer = LayerTracer(lineWidth: style.lineWidth, layerScale: largestScale(of: name))
-            let tracedName = "Blueprint " + (name as NSString).deletingPathExtension + ".svg"
+            let tracedName = Self.tracedAssetName(for: name)
             assets[tracedName] = try tracer.trace(self.assets[name]!, named: name)
             tracedNames[name] = tracedName
         }
@@ -29,6 +29,14 @@ extension IconComposerDescriptorFile {
     }
 
     static let paperAssetName = "Blueprint Paper.svg"
+
+    /// Asset names are file names, so on a case-insensitive disk a layer image
+    /// called `paper.svg` would overwrite the paper and lose its outline.
+    static func tracedAssetName(for imageName: String) -> String {
+        let base = "Blueprint " + (imageName as NSString).deletingPathExtension
+        let name = base + ".svg"
+        return name.caseInsensitiveCompare(paperAssetName) == .orderedSame ? base + " Layer.svg" : name
+    }
 
     /// Line width is set in final icon points, so it is divided by the scale the
     /// layer is drawn at; the largest scale keeps lines from getting too thick.
