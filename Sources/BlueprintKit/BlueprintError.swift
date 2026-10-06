@@ -2,9 +2,8 @@ import Foundation
 
 /// An error that occurs while drawing a blueprint.
 ///
-/// Each case carries the file name involved, and ``errorDescription`` turns it into
-/// a message that can be shown to the user as is.
-public enum BlueprintError: Error, LocalizedError {
+/// ``errorDescription`` turns each case into a message that can be shown to the user as is.
+public enum BlueprintError: Error, LocalizedError, Equatable {
 
     /// A layer image couldn't be read as an image.
     ///
@@ -29,6 +28,9 @@ public enum BlueprintError: Error, LocalizedError {
     /// Core Image or Image I/O failed to process a layer.
     case imageProcessingFailed
 
+    /// IconKit wrote an `icon.json` without the groups and layers blueprint expects.
+    case unexpectedIconLayout
+
     /// A message describing the error, suitable for showing to the user.
     public var errorDescription: String? {
         switch self {
@@ -37,11 +39,13 @@ public enum BlueprintError: Error, LocalizedError {
         case .missingLayerImage(let name):
             "The icon refers to \(name), but it isn't in the Assets folder."
         case .wouldOverwriteIcon(let name):
-            "\(name) already exists and isn't a blueprint icon. Pick another name with --output."
+            "\(name) already exists and isn't a blueprint icon."
         case .alreadyBlueprint(let name):
             "\(name) is already a blueprint. Pass the original icon instead."
         case .imageProcessingFailed:
             "Image processing failed."
+        case .unexpectedIconLayout:
+            "The written icon.json doesn't have the expected groups and layers."
         }
     }
 }

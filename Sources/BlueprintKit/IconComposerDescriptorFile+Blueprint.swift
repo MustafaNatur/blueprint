@@ -24,140 +24,205 @@ extension IconComposerDescriptorFile {
     /// Use ``BlueprintIcon/generate(from:to:style:)`` to read, convert and save an
     /// icon in one step.
     ///
-    /// - Parameter style: The paper colors, line width and grid of the blueprint.
+    /// - Parameter style: The background colors, line width and grid of the blueprint.
     /// - Returns: The blueprint, ready to be written to disk.
     /// - Throws: ``BlueprintError/missingLayerImage(_:)`` when a layer refers to an
     ///   image that isn't in the bundle, and any error from tracing a layer.
     public func blueprint(style: BlueprintStyle) throws -> IconComposerDescriptorFile {
-        if let missing = validateAssets().first {
-            throw BlueprintError.missingLayerImage(missing)
-        }
+        let outlineFileNames = outlineFileNames()
+        let outlines = try outlineImages(named: outlineFileNames, lineWidth: style.lineWidth)
 
-        let tracedNames = tracedAssetNames()
-        var assets: [String: Data] = [:]
-        for (imageName, tracedName) in tracedNames {
-            let tracer = LayerTracer(lineWidth: style.lineWidth, layerScale: largestScale(of: imageName))
-            assets[tracedName] = try tracer.trace(self.assets[imageName]!, named: imageName)
-        }
+        let drawingGroups = drawingGroups(showing: outlineFileNames)
+        let paperGroup = Self.paperGroup(style)
+        let paperImages = Self.paperImages(style)
 
-        var document = self.document
-        document.fill = .solid(style.baseFill)
-        document.fillSpecializations = nil
-        document.groups = document.groups.enumerated().map { index, group in
-            group.flattened(renaming: tracedNames, fallbackName: index == 0 ? "Drawing" : "Drawing \(index + 1)")
-        }
+        var blueprint = document
+        blueprint.fill = .solid(style.middleBackgroundColor)
+        blueprint.fillSpecializations = nil
+        blueprint.groups = drawingGroups + [paperGroup]
 
-        var paperLayers: [IconLayer] = []
-        if style.showsGrid {
-            assets[Self.gridAssetName] = BlueprintPaper.grid()
-            paperLayers.append(IconLayer(name: "Grid", imageName: Self.gridAssetName, glass: false))
-        }
-        assets[Self.backgroundAssetName] = BlueprintPaper.background(colors: style.paperHexes)
-        paperLayers.append(IconLayer(name: "Background", imageName: Self.backgroundAssetName, glass: false))
-        document.groups.append(.flat(name: Self.paperGroupName, layers: paperLayers))
-
-        return IconComposerDescriptorFile(document: document, assets: assets)
+        let assets = outlines.merging(paperImages) { _, paperImage in paperImage }
+        return IconComposerDescriptorFile(document: blueprint, assets: assets)
     }
 
-    // MARK: - Paper Names
+    // MARK: - Drawing
 
-    /// The name of the group that holds the paper, which also marks an icon as a blueprint.
-    static let paperGroupName = "Blueprint Paper"
+    /// Every layer of the icon, in every group.
+    var allLayers: [IconLayer] {
+        document.groups.flatMap(\.layers)
+    }
 
-    /// The file name of the grid image.
-    static let gridAssetName = "Grid.svg"
+    /// Returns the original groups drawn matte, with their layers showing outlines.
+    private func drawingGroups(showing outlineFileNames: [String: String]) -> [IconGroup] {
+        document.groups.enumerated().map { index, group in
+            let fallbackName = index == 0 ? "Drawing" : "Drawing \(index + 1)"
+            return group.outlined(using: outlineFileNames, fallbackName: fallbackName)
+        }
+    }
 
-    /// The file name of the background image.
-    static let backgroundAssetName = "Background.svg"
+    /// Returns the traced outline of every image, keyed by the outline's file name.
+    private func outlineImages(named outlineFileNames: [String: String], lineWidth: Double) throws -> [String: Data] {
+        try outlineFileNames.reduce(into: [:]) { outlines, names in
+            let (imageName, outlineFileName) = names
+            guard let image = assets[imageName] else { throw BlueprintError.missingLayerImage(imageName) }
+            let layerScale = largestScale(of: imageName)
+            let tracer = LayerTracer(lineWidth: lineWidth, layerScale: layerScale)
+            outlines[outlineFileName] = try tracer.trace(image, named: imageName)
+        }
+    }
 
-    // MARK: - Layer Images
-
-    /// Returns the file name of each traced image, keyed by the original image name.
+    /// Returns the file name of each image's outline, keyed by the image's own name.
     ///
-    /// A traced image is named after the first layer that shows it, so the files in
+    /// An outline is named after the first layer that shows its image, so the files in
     /// `Assets` match the layer list; images used only in appearance variants keep
-    /// their own names. Names are unique ignoring case, because they become file
-    /// names on a case-insensitive disk, and never clash with the paper images.
-    private func tracedAssetNames() -> [String: String] {
-        var names: [String: String] = [:]
-        var taken: Set<String> = [Self.gridAssetName.lowercased(), Self.backgroundAssetName.lowercased()]
+    /// their own names.
+    private func outlineFileNames() -> [String: String] {
+        let layerImages: [(imageName: String, title: String)] = allLayers.compactMap { layer in
+            guard let imageName = layer.imageName else { return nil }
+            let title = layer.name ?? imageName.withoutExtension
+            return (imageName, title)
+        }
+        let allImages = referencedImageNames.sorted().map { imageName in
+            (imageName: imageName, title: imageName.withoutExtension)
+        }
+        let titledImages = layerImages + allImages
 
-        func claim(_ imageName: String, as title: String) {
-            guard names[imageName] == nil else { return }
-            let base = title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
-            var candidate = "\(base).svg", number = 2
-            while taken.contains(candidate.lowercased()) {
-                candidate = "\(base) \(number).svg"
-                number += 1
-            }
-            taken.insert(candidate.lowercased())
-            names[imageName] = candidate
+        var fileNames = UniqueFileNames(reserving: [Self.gridFileName, Self.backgroundFileName])
+        var outlineFileNames: [String: String] = [:]
+        for (imageName, title) in titledImages where outlineFileNames[imageName] == nil {
+            outlineFileNames[imageName] = fileNames.next(for: title)
         }
-
-        for layer in document.groups.flatMap(\.layers) {
-            if let imageName = layer.imageName {
-                claim(imageName, as: layer.name ?? (imageName as NSString).deletingPathExtension)
-            }
-        }
-        for imageName in referencedImageNames.sorted() {
-            claim(imageName, as: (imageName as NSString).deletingPathExtension)
-        }
-        return names
+        return outlineFileNames
     }
 
     /// Returns the largest scale any layer draws an image at.
-    ///
-    /// Outlines are traced at the image's own size, so dividing the line width by
-    /// this scale keeps them at the requested width in the finished icon.
     private func largestScale(of imageName: String) -> Double {
-        let scales = document.groups.flatMap(\.layers)
-            .filter { $0.imageName == imageName || $0.imageNameSpecializations?.contains { $0.value == imageName } == true }
-            .flatMap { layer in [layer.position?.scale ?? 1] + (layer.positionSpecializations ?? []).map(\.value.scale) }
+        let layersShowingImage = allLayers.filter { $0.shows(imageName) }
+        let scales = layersShowingImage.flatMap(\.allScales)
         return scales.max() ?? 1
+    }
+
+    // MARK: - Paper
+
+    /// The name of the group that holds the grid and the background, which also marks an icon as a blueprint.
+    static let paperGroupName = "Blueprint Paper"
+    static let gridFileName = "Grid.svg"
+    static let backgroundFileName = "Background.svg"
+
+    private static func paperGroup(_ style: BlueprintStyle) -> IconGroup {
+        let grid = IconLayer(name: "Grid", imageName: gridFileName, glass: false)
+        let background = IconLayer(name: "Background", imageName: backgroundFileName, glass: false)
+        let layers = style.showsGrid ? [grid, background] : [background]
+        return .matte(name: paperGroupName, layers: layers)
+    }
+
+    private static func paperImages(_ style: BlueprintStyle) -> [String: Data] {
+        let background = BlueprintPaper.background(colors: style.backgroundColors)
+        var images = [backgroundFileName: background]
+        if style.showsGrid {
+            images[gridFileName] = BlueprintPaper.grid()
+        }
+        return images
     }
 }
 
-// MARK: - Flat Groups and Layers
+// MARK: - Unique File Names
+
+/// Hands out `.svg` file names that are unique ignoring case, because they become
+/// file names on a case-insensitive disk.
+private struct UniqueFileNames {
+    private var taken: Set<String>
+
+    init(reserving names: [String]) {
+        taken = Set(names.map { $0.lowercased() })
+    }
+
+    /// Returns `"<title>.svg"`, or `"<title> 2.svg"` and so on when that's taken.
+    mutating func next(for title: String) -> String {
+        let titleWithoutSlashes = title.replacingOccurrences(of: "/", with: "-")
+        let base = titleWithoutSlashes.replacingOccurrences(of: ":", with: "-")
+        var name = "\(base).svg"
+        var number = 2
+        while taken.contains(name.lowercased()) {
+            name = "\(base) \(number).svg"
+            number += 1
+        }
+        taken.insert(name.lowercased())
+        return name
+    }
+}
+
+// MARK: - Matte Groups and Outlined Layers
 
 private extension IconGroup {
-    /// Creates a group drawn flat, without shadow, translucency or specular highlights.
-    static func flat(name: String?, layers: [IconLayer]) -> IconGroup {
+    /// Creates a group drawn matte: no shadow, translucency or specular highlights.
+    static func matte(
+        id: String? = nil,
+        name: String?,
+        layers: [IconLayer],
+        hidden: Bool? = nil,
+        hiddenSpecializations: [Specialization<Bool>]? = nil,
+        positionSpecializations: [Specialization<IconPosition>]? = nil
+    ) -> IconGroup {
         IconGroup(
+            id: id,
             name: name,
             layers: layers,
+            hidden: hidden,
             shadow: IconShadow(kind: .none, opacity: 0),
             translucency: .disabled,
-            specular: false
+            specular: false,
+            hiddenSpecializations: hiddenSpecializations,
+            positionSpecializations: positionSpecializations
         )
     }
 
-    /// Returns this group drawn flat, with its layers pointing at their traced images.
-    func flattened(renaming tracedNames: [String: String], fallbackName: String) -> IconGroup {
-        var group = IconGroup.flat(name: name ?? fallbackName, layers: layers.map { $0.flattened(renaming: tracedNames) })
-        group.id = id
-        group.hidden = hidden
-        group.hiddenSpecializations = hiddenSpecializations
-        group.positionSpecializations = positionSpecializations
-        return group
+    /// Returns this group drawn matte, with its layers showing their outlines.
+    func outlined(using outlineFileNames: [String: String], fallbackName: String) -> IconGroup {
+        let outlinedLayers = layers.map { $0.outlined(using: outlineFileNames) }
+        return .matte(
+            id: id,
+            name: name ?? fallbackName,
+            layers: outlinedLayers,
+            hidden: hidden,
+            hiddenSpecializations: hiddenSpecializations,
+            positionSpecializations: positionSpecializations
+        )
     }
 }
 
 private extension IconLayer {
-    /// Returns this layer without glass, showing its traced image in the same place.
-    func flattened(renaming tracedNames: [String: String]) -> IconLayer {
-        let tracedName = imageName.flatMap { tracedNames[$0] }
+    /// Returns this layer showing its image's outline, keeping only its name, visibility
+    /// and position. Opacity, blend mode, fill and glass are left out.
+    func outlined(using outlineFileNames: [String: String]) -> IconLayer {
+        let outlineFileName = imageName.flatMap { outlineFileNames[$0] }
+        let outlineVariants = imageNameSpecializations?.map { variant in
+            let variantOutline = outlineFileNames[variant.value] ?? variant.value
+            return Specialization(appearance: variant.appearance, idiom: variant.idiom, value: variantOutline)
+        }
         return IconLayer(
             id: id,
-            name: name ?? tracedName.map { ($0 as NSString).deletingPathExtension },
-            imageName: tracedName,
+            name: name ?? outlineFileName?.withoutExtension,
+            imageName: outlineFileName,
             hidden: hidden,
             glass: false,
             position: position,
-            imageNameSpecializations: imageNameSpecializations?.map {
-                Specialization(appearance: $0.appearance, idiom: $0.idiom, value: tracedNames[$0.value] ?? $0.value)
-            },
+            imageNameSpecializations: outlineVariants,
             hiddenSpecializations: hiddenSpecializations,
             positionSpecializations: positionSpecializations
         )
+    }
+
+    /// Whether the layer shows the image in any appearance.
+    func shows(_ imageName: String) -> Bool {
+        let variantImageNames = (imageNameSpecializations ?? []).map(\.value)
+        return self.imageName == imageName || variantImageNames.contains(imageName)
+    }
+
+    /// The layer's scale in every appearance.
+    var allScales: [Double] {
+        let scale = position?.scale ?? 1
+        let variantScales = (positionSpecializations ?? []).map(\.value.scale)
+        return [scale] + variantScales
     }
 }

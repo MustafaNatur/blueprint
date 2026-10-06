@@ -16,6 +16,8 @@ struct Blueprint: ParsableCommand {
         version: "1.1.0"
     )
 
+    // MARK: - Arguments
+
     @Argument(help: "The .icon file to redraw.")
     var icon: String
 
@@ -23,52 +25,70 @@ struct Blueprint: ParsableCommand {
     var output: String?
 
     @Option(help: "Background colors from top to bottom, comma-separated. One color gives a flat background.")
-    var color = BlueprintStyle.xcodePaper.joined(separator: ",")
+    var color = BlueprintStyle.xcodeBackgroundColors.joined(separator: ",")
 
     @Option(help: "Outline width, in icon points (the icon is 1024 pt).")
     var lineWidth = 9.0
 
-    @Flag(help: "Leave out the grid behind the drawing.")
-    var noGrid = false
+    @Flag(inversion: .prefixedNo, help: "Draw the grid behind the drawing.")
+    var grid = true
 
-    @Flag(help: "Don't open the result in Icon Composer.")
-    var noOpen = false
+    @Flag(inversion: .prefixedNo, help: "Open the result in Icon Composer.")
+    var open = true
 
     // MARK: - Running
 
     func run() throws {
-        let style = try BlueprintStyle(
-            paperHexes: color.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) },
-            lineWidth: lineWidth,
-            showsGrid: !noGrid
-        )
-        let source = URL(fileURLWithPath: icon)
-        let destination = output.map { URL(fileURLWithPath: $0) }
-            ?? currentDirectory.appendingPathComponent(source.deletingPathExtension().lastPathComponent + "Debug.icon")
-
-        let layers = try BlueprintIcon.generate(from: source, to: destination, style: style)
-        print("✓ Drew \(destination.lastPathComponent) from \(layers) layer\(layers == 1 ? "" : "s") of \(source.lastPathComponent)")
-
-        if !noOpen {
-            try openInIconComposer(destination)
+        let layerCount = try drawBlueprint()
+        let layers = layerCount == 1 ? "1 layer" : "\(layerCount) layers"
+        print("✓ Drew \(destination.lastPathComponent) from \(layers) of \(source.lastPathComponent)")
+        if open {
+            openInIconComposer(destination)
         }
     }
 
-    // MARK: - Helpers
-
-    private var currentDirectory: URL {
-        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    private func drawBlueprint() throws -> Int {
+        let style = try style()
+        do {
+            return try BlueprintIcon.generate(from: source, to: destination, style: style)
+        } catch BlueprintError.wouldOverwriteIcon(let name) {
+            throw ValidationError("\(name) already exists and isn't a blueprint icon. Pick another name with --output.")
+        }
     }
 
-    private func openInIconComposer(_ icon: URL) throws {
-        let open = Process()
-        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        open.arguments = ["-b", "com.apple.IconComposer", icon.path]
-        open.standardError = FileHandle.nullDevice
-        try open.run()
-        open.waitUntilExit()
-        if open.terminationStatus != 0 {
-            print("  Couldn't open Icon Composer. It comes with Xcode 26 or later.")
+    // MARK: - Inputs
+
+    private var source: URL {
+        URL(fileURLWithPath: icon)
+    }
+
+    private var destination: URL {
+        if let output {
+            return URL(fileURLWithPath: output)
+        }
+        let currentPath = FileManager.default.currentDirectoryPath
+        let currentFolder = URL(fileURLWithPath: currentPath)
+        let sourceName = source.deletingPathExtension().lastPathComponent
+        return currentFolder.appendingPathComponent(sourceName + "Debug.icon")
+    }
+
+    private func style() throws -> BlueprintStyle {
+        let backgroundColors = color.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        return try BlueprintStyle(backgroundColors: backgroundColors, lineWidth: lineWidth, showsGrid: grid)
+    }
+
+    // MARK: - Icon Composer
+
+    private func openInIconComposer(_ icon: URL) {
+        let opening = Process()
+        opening.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        opening.arguments = ["-b", "com.apple.IconComposer", icon.path]
+        opening.standardError = FileHandle.nullDevice
+        try? opening.run()
+        opening.waitUntilExit()
+        if opening.terminationStatus != 0 {
+            let message = "  Couldn't open Icon Composer. It comes with Xcode 26 or later.\n"
+            FileHandle.standardError.write(Data(message.utf8))
         }
     }
 }

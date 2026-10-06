@@ -1,99 +1,149 @@
+import CoreGraphics
 import Foundation
 import IconKit
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import BlueprintKit
 
-@Suite struct BlueprintIconTests {
-    private let card = Data("""
-    <svg width="600" height="500" viewBox="0 0 600 500" xmlns="http://www.w3.org/2000/svg">
-    <rect width="600" height="500" rx="138" fill="#f0a"/>
-    </svg>
-    """.utf8)
+/// Tests drawing blueprints to disk and recognizing them.
+@Suite final class BlueprintIconTests {
 
-    private func icon() -> IconComposerDescriptorFile {
-        let layer = IconLayer(
-            name: "Card",
-            imageName: "Card.svg",
-            opacity: 0.85,
-            glass: true,
-            position: IconPosition(scale: 0.9, translationInPoints: [108, -168])
-        )
-        let group = IconGroup(layers: [layer], shadow: .neutral, translucency: .default)
-        return IconComposerDescriptorFile(
-            document: IconDocument(fill: .solid(IconColor(colorSpace: .gray, components: [0.9, 1])), groups: [group]),
-            assets: ["Card.svg": card]
-        )
+    // MARK: - Fixtures
+
+    private let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    private lazy var destination = folder.appendingPathComponent("AppDebug.icon")
+
+    deinit {
+        try? FileManager.default.removeItem(at: folder)
     }
 
-    @Test func keepsLayoutButFlattensMaterials() throws {
-        let style = try BlueprintStyle()
-        let blueprint = try icon().blueprint(style: style)
-        let card = try #require(blueprint.document.groups.first?.layers.first)
+    /// A PNG with a filled square inset from its edges.
+    private func squarePNG(width: Int = 200, height: Int = 200, dpi: Double = 72) throws -> Data {
+        let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
+        let context = try #require(CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: sRGB, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(red: 1, green: 0, blue: 0.5, alpha: 1)
+        context.fill(CGRect(x: 20, y: 20, width: width - 40, height: height - 40))
 
-        #expect(blueprint.document.fill == .solid(try parseHexIconColor("#10A3FA")))
-        #expect(card.position == IconPosition(scale: 0.9, translationInPoints: [108, -168]))
-        #expect(card.glass == false)
-        #expect(card.opacity == nil)
-        #expect(card.name == "Card")
-        #expect(card.imageName == "Card.svg")
-        #expect(blueprint.document.groups.first?.shadow?.kind == IconShadow.Kind.none)
-        #expect(blueprint.validateAssets().isEmpty)
+        let png = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(png, UTType.png.identifier as CFString, 1, nil))
+        let resolution = [kCGImagePropertyDPIWidth: dpi, kCGImagePropertyDPIHeight: dpi] as CFDictionary
+        let image = try #require(context.makeImage())
+        CGImageDestinationAddImage(destination, image, resolution)
+        CGImageDestinationFinalize(destination)
+        return png as Data
     }
 
-    @Test func namesGroupsAndLayersForIconComposer() throws {
-        let groups = try icon().blueprint(style: BlueprintStyle()).document.groups
-        #expect(groups.map(\.name) == ["Drawing", "Blueprint Paper"])
-        #expect(groups[0].layers.map(\.name) == ["Card"])
-        #expect(groups[1].layers.map(\.name) == ["Grid", "Background"])
-        #expect(groups[1].layers.map(\.imageName) == ["Grid.svg", "Background.svg"])
+    /// Writes a one-layer icon to the test folder.
+    private func writeIcon(named name: String = "App.icon", image: Data, imageName: String = "Layer.png") throws -> URL {
+        let url = folder.appendingPathComponent(name)
+        let layer = IconLayer(imageName: imageName)
+        let document = IconDocument(groups: [IconGroup(layers: [layer])])
+        let icon = IconComposerDescriptorFile(document: document, assets: [imageName: image])
+        try icon.write(to: url)
+        return url
     }
 
-    @Test func noGridKeepsTheBackground() throws {
-        let blueprint = try icon().blueprint(style: BlueprintStyle(showsGrid: false))
-        #expect(blueprint.document.groups.last?.layers.map(\.name) == ["Background"])
-        #expect(blueprint.assets["Grid.svg"] == nil)
-        let background = String(decoding: try #require(blueprint.assets["Background.svg"]), as: UTF8.self)
-        #expect(background.contains("#0AC2FC") && background.contains("#1A6FFB"))
+    private func assetFileNames(in bundle: URL) throws -> Set<String> {
+        let assetsURL = IconBundle.assetsURL(in: bundle)
+        let fileNames = try FileManager.default.contentsOfDirectory(atPath: assetsURL.path)
+        return Set(fileNames)
     }
 
-    @Test func keepsFileNamesUniqueAndClearOfThePaper() throws {
-        var icon = icon()
-        icon.document.groups[0].layers = [
-            IconLayer(name: "Background", imageName: "Card.svg"),
-            IconLayer(name: "Background", imageName: "Other.svg"),
-        ]
-        icon.assets["Other.svg"] = icon.assets["Card.svg"]
-        let names = Set(try icon.blueprint(style: BlueprintStyle()).assets.keys)
-        #expect(names == ["Background 2.svg", "Background 3.svg", "Grid.svg", "Background.svg"])
+    // MARK: - Drawing
+
+    @Test func bitmapLayersKeepTheirPixelSize() throws {
+        let image = try squarePNG(width: 400, height: 300, dpi: 144)
+        let source = try writeIcon(image: image)
+
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
+
+        let outlineURL = IconBundle.assetsURL(in: destination).appendingPathComponent("Layer.svg")
+        let outline = try String(contentsOf: outlineURL, encoding: .utf8)
+        #expect(outline.hasPrefix("<svg width='400' height='300'"))
     }
 
-    @Test func readsIconComposerNoneFills() throws {
-        let bundle = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).icon")
-        defer { try? FileManager.default.removeItem(at: bundle) }
-        try icon().write(to: bundle)
+    @Test func layersKeepTheirColorsInDarkAndTintedIcons() throws {
+        let source = try writeIcon(image: squarePNG())
 
-        let jsonURL = bundle.appendingPathComponent("icon.json")
-        let json = try String(contentsOf: jsonURL, encoding: .utf8)
-            .replacingOccurrences(of: #""glass" : true"#, with: #""fill" : "none", "glass" : true"#)
-        try json.write(to: jsonURL, atomically: true, encoding: .utf8)
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
 
-        #expect(throws: (any Error).self) { try IconComposerDescriptorFile(contentsOf: bundle) }
-        let read = try IconComposerDescriptorFile.reading(bundle)
-        #expect(read.document.groups.first?.layers.first?.fill == nil)
+        let descriptorURL = IconBundle.descriptorURL(in: destination)
+        let descriptorData = try Data(contentsOf: descriptorURL)
+        let descriptor = try #require(try JSONSerialization.jsonObject(with: descriptorData) as? JSONObject)
+        let groups = try #require(descriptor["groups"] as? [JSONObject])
+        let layers = groups.flatMap { $0["layers"] as? [JSONObject] ?? [] }
+        let drawingLayerAndGridAndBackground = 3
+        #expect(layers.count == drawingLayerAndGridAndBackground)
+        #expect(layers.allSatisfy { $0["fill"] as? String == "none" })
     }
 
-    @Test func readsIconComposerLayerColorShadows() throws {
-        let bundle = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).icon")
-        defer { try? FileManager.default.removeItem(at: bundle) }
-        try icon().write(to: bundle)
+    @Test func layerNamedLikeThePaperKeepsItsOutline() throws {
+        let source = try writeIcon(image: squarePNG(), imageName: "background.png")
 
-        let jsonURL = bundle.appendingPathComponent("icon.json")
-        let json = try String(contentsOf: jsonURL, encoding: .utf8)
-            .replacingOccurrences(of: #""kind" : "neutral""#, with: #""kind" : "layer-color""#)
-        try json.write(to: jsonURL, atomically: true, encoding: .utf8)
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
 
-        #expect(throws: (any Error).self) { try IconComposerDescriptorFile(contentsOf: bundle) }
-        let read = try IconComposerDescriptorFile.reading(bundle)
-        #expect(read.document.groups.first?.layers.first?.position?.translationInPoints == [108, -168])
+        #expect(try assetFileNames(in: destination) == ["Background.svg", "Grid.svg", "background 2.svg"])
+    }
+
+    @Test func leavesNoTemporaryFilesBehind() throws {
+        let source = try writeIcon(image: squarePNG())
+
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
+
+        let filesInFolder = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        #expect(filesInFolder.sorted() == ["App.icon", "AppDebug.icon"])
+    }
+
+    // MARK: - Replacing
+
+    @Test func replacesABlueprintItDrewBefore() throws {
+        let source = try writeIcon(image: squarePNG())
+
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle(showsGrid: false))
+
+        #expect(try assetFileNames(in: destination) == ["Background.svg", "Layer.svg"])
+    }
+
+    @Test func refusesToOverwriteAnotherIcon() throws {
+        let source = try writeIcon(image: squarePNG())
+        let otherIcon = try writeIcon(named: "Other.icon", image: squarePNG())
+
+        #expect(throws: BlueprintError.wouldOverwriteIcon("Other.icon")) {
+            try BlueprintIcon.generate(from: source, to: otherIcon, style: BlueprintStyle())
+        }
+        #expect(try assetFileNames(in: otherIcon) == ["Layer.png"])
+    }
+
+    @Test func refusesToRedrawABlueprint() throws {
+        let source = try writeIcon(image: squarePNG())
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
+        let blueprint = destination
+
+        let blueprintOfBlueprint = folder.appendingPathComponent("AppDebugDebug.icon")
+
+        #expect(throws: BlueprintError.alreadyBlueprint("AppDebug.icon")) {
+            try BlueprintIcon.generate(from: blueprint, to: blueprintOfBlueprint, style: BlueprintStyle())
+        }
+    }
+
+    // MARK: - Recognizing
+
+    @Test func recognizesItsOwnBlueprints() throws {
+        let source = try writeIcon(image: squarePNG())
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
+
+        #expect(BlueprintIcon.isBlueprint(destination))
+        #expect(!BlueprintIcon.isBlueprint(source))
+    }
+
+    @Test func recognizesVersion1Blueprints() throws {
+        let emptySVG = Data("<svg/>".utf8)
+        let version1Blueprint = try writeIcon(named: "Old.icon", image: emptySVG, imageName: "Blueprint Paper.svg")
+        #expect(BlueprintIcon.isBlueprint(version1Blueprint))
     }
 }

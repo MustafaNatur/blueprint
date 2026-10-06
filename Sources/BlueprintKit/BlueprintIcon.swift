@@ -19,41 +19,34 @@ public enum BlueprintIcon {
 
     /// Draws a blueprint of an icon and saves it as a new `.icon` bundle.
     ///
-    /// The blueprint is written next to the destination first and then moved into
-    /// place, so a failure never leaves a half-written icon behind. A blueprint
-    /// drawn earlier at `destination` is replaced; any other icon there is left
-    /// untouched and the call throws instead.
+    /// A blueprint drawn earlier at `destination` is replaced. Any other icon there is
+    /// left untouched, and the call throws instead.
     ///
     /// - Parameters:
     ///   - source: The Icon Composer `.icon` bundle to redraw.
     ///   - destination: Where to save the blueprint `.icon` bundle.
-    ///   - style: The paper colors, line width and grid of the blueprint.
+    ///   - style: The background colors, line width and grid of the blueprint.
     /// - Returns: The number of layers in the original icon.
     /// - Throws: ``BlueprintError/alreadyBlueprint(_:)`` when `source` is itself a
     ///   blueprint, ``BlueprintError/wouldOverwriteIcon(_:)`` when `destination` holds
     ///   an icon blueprint didn't draw, and any error from reading or writing the files.
     @discardableResult
     public static func generate(from source: URL, to destination: URL, style: BlueprintStyle) throws -> Int {
-        let fileManager = FileManager.default
+        try ensureCanDraw(from: source, to: destination)
+        let original = try IconComposerDescriptorFile.readingLayout(of: source)
+        let blueprint = try original.blueprint(style: style)
+        try blueprint.write(replacing: destination)
+        return original.allLayers.count
+    }
+
+    private static func ensureCanDraw(from source: URL, to destination: URL) throws {
         if isBlueprint(source) {
             throw BlueprintError.alreadyBlueprint(source.lastPathComponent)
         }
-        if fileManager.fileExists(atPath: destination.path), !isBlueprint(destination) {
+        let destinationIsTaken = FileManager.default.fileExists(atPath: destination.path)
+        if destinationIsTaken, !isBlueprint(destination) {
             throw BlueprintError.wouldOverwriteIcon(destination.lastPathComponent)
         }
-
-        let original = try IconComposerDescriptorFile.reading(source)
-        let blueprint = try original.blueprint(style: style)
-
-        let staging = destination.deletingLastPathComponent()
-            .appendingPathComponent(".\(destination.lastPathComponent)-\(UUID().uuidString)")
-        try blueprint.writeKeepingLayerColors(to: staging)
-        if fileManager.fileExists(atPath: destination.path) {
-            _ = try fileManager.replaceItemAt(destination, withItemAt: staging)
-        } else {
-            try fileManager.moveItem(at: staging, to: destination)
-        }
-        return original.document.groups.flatMap(\.layers).count
     }
 
     // MARK: - Recognizing a Blueprint
@@ -67,12 +60,23 @@ public enum BlueprintIcon {
     /// - Returns: `true` if the icon is a blueprint; otherwise, `false`, including
     ///   when there's no readable icon at `url`.
     public static func isBlueprint(_ url: URL) -> Bool {
-        if FileManager.default.fileExists(atPath: url.appendingPathComponent("Assets/Blueprint Paper.svg").path) {
-            return true
-        }
-        guard let data = FileManager.default.contents(atPath: url.appendingPathComponent("icon.json").path),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let groups = json["groups"] as? [[String: Any]] else { return false }
-        return groups.contains { $0["name"] as? String == IconComposerDescriptorFile.paperGroupName }
+        let hasPaperGroup = groupNames(in: url).contains(IconComposerDescriptorFile.paperGroupName)
+        return hasPaperGroup || hasVersion1Paper(url)
+    }
+
+    private static let version1PaperFileName = "Blueprint Paper.svg"
+
+    private static func hasVersion1Paper(_ url: URL) -> Bool {
+        let assetsURL = IconBundle.assetsURL(in: url)
+        let paperURL = assetsURL.appendingPathComponent(version1PaperFileName)
+        return FileManager.default.fileExists(atPath: paperURL.path)
+    }
+
+    private static func groupNames(in url: URL) -> [String] {
+        let descriptorURL = IconBundle.descriptorURL(in: url)
+        guard let descriptorData = FileManager.default.contents(atPath: descriptorURL.path),
+              let descriptor = try? JSONSerialization.jsonObject(with: descriptorData) as? JSONObject,
+              let groups = descriptor["groups"] as? [JSONObject] else { return [] }
+        return groups.compactMap { $0["name"] as? String }
     }
 }

@@ -16,36 +16,54 @@ extension IconComposerDescriptorFile {
     /// - Parameter bundleURL: The location of the `.icon` bundle.
     /// - Returns: The icon's layout and every file in its `Assets` folder.
     /// - Throws: An error if `icon.json` or an asset can't be read or decoded.
-    static func reading(_ bundleURL: URL) throws -> IconComposerDescriptorFile {
-        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: bundleURL.appendingPathComponent("icon.json")))
-        let layout = try JSONSerialization.data(withJSONObject: withoutMaterials(json))
-        let document = try JSONDecoder().decode(IconDocument.self, from: layout)
+    static func readingLayout(of bundleURL: URL) throws -> IconComposerDescriptorFile {
+        let descriptorURL = IconBundle.descriptorURL(in: bundleURL)
+        let descriptorData = try Data(contentsOf: descriptorURL)
+        let descriptor = try JSONSerialization.jsonObject(with: descriptorData)
 
-        let assetsURL = bundleURL.appendingPathComponent("Assets")
-        let files = (try? FileManager.default.contentsOfDirectory(at: assetsURL, includingPropertiesForKeys: nil)) ?? []
-        let assets = try Dictionary(uniqueKeysWithValues: files.map { ($0.lastPathComponent, try Data(contentsOf: $0)) })
+        let layout = withoutMaterials(descriptor)
+        let layoutData = try JSONSerialization.data(withJSONObject: layout)
+        let document = try JSONDecoder().decode(IconDocument.self, from: layoutData)
+
+        let assets = try assetFiles(in: bundleURL)
         return IconComposerDescriptorFile(document: document, assets: assets)
     }
 
+    private static func assetFiles(in bundleURL: URL) throws -> [String: Data] {
+        let assetsURL = IconBundle.assetsURL(in: bundleURL)
+        let fileURLs = (try? FileManager.default.contentsOfDirectory(at: assetsURL, includingPropertiesForKeys: nil)) ?? []
+
+        var files: [String: Data] = [:]
+        for fileURL in fileURLs {
+            files[fileURL.lastPathComponent] = try Data(contentsOf: fileURL)
+        }
+        return files
+    }
+
+    // MARK: - Materials
+
     /// The `icon.json` properties that describe materials rather than layout.
-    private static let materialKeys: Set<String> = [
+    private static let materialProperties: Set<String> = [
         "fill", "shadow", "translucency", "blend-mode", "lighting", "specular", "glass", "opacity", "blur-material",
     ]
 
     /// Returns the JSON value with every material property and its specializations removed, at any depth.
     private static func withoutMaterials(_ value: Any) -> Any {
         switch value {
-        case let dictionary as [String: Any]:
-            dictionary.reduce(into: [String: Any]()) { result, entry in
-                let property = entry.key.replacingOccurrences(of: "-specializations", with: "")
-                if !materialKeys.contains(property) {
-                    result[entry.key] = withoutMaterials(entry.value)
-                }
-            }
+        case let object as JSONObject:
+            let layoutProperties = object.filter { !isMaterial($0.key) }
+            return layoutProperties.mapValues(withoutMaterials)
         case let array as [Any]:
-            array.map(withoutMaterials)
+            return array.map(withoutMaterials)
         default:
-            value
+            return value
         }
+    }
+
+    /// Whether a key names a material property, like `"shadow"`, or its specializations, like `"shadow-specializations"`.
+    private static func isMaterial(_ key: String) -> Bool {
+        let suffix = "-specializations"
+        let property = key.hasSuffix(suffix) ? String(key.dropLast(suffix.count)) : key
+        return materialProperties.contains(property)
     }
 }
