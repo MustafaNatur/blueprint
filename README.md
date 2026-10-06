@@ -5,15 +5,7 @@ Turn your app icon into a blueprint version, like Xcode's icon, for your debug b
 Works with Icon Composer `.icon` files and classic `.appiconset` folders.
 
 <p align="center">
-  <img src="docs/icon.png" width="160" alt="Icon Composer app icon">
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/debug-icon.png" width="160" alt="Its blueprint">
-</p>
-
-<p align="center">
-  <img src="docs/flat-icon.png" width="160" alt="Flat .appiconset app icon">
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/flat-debug-icon.png" width="160" alt="Its blueprint">
+  <img src="docs/results.png" width="820" alt="App icons next to their blueprints, as an Icon Composer .icon and as a flat .appiconset">
 </p>
 
 ## Install
@@ -64,6 +56,6 @@ Then set it as the app icon of your Debug configuration in Xcode: **Primary App 
 
 ## Good to know
 
-- **How a flat `.appiconset` icon is traced.** A flat image has no layers, so blueprint first finds the shapes in it: from the background color, or with Vision's subject lifting when the background is busy. It outlines them, and adds the edges inside them, like overlaps and holes.
+- **How a flat `.appiconset` icon is traced.** A flat image has no layers, so blueprint separates what's in front from the background with Vision's subject lifting, the same as "Lift Subject" in Photos, and outlines it as one shape.
 - **Every slot is kept.** Dark and tinted variants, and every size of a macOS icon set, get the blueprint too, so it looks the same everywhere.
 - Running `blueprint` again replaces the blueprint it drew before. It never overwrites any other icon.

@@ -1,5 +1,5 @@
 import ArgumentParser
-import BlueprintKit
+import BlueprintCore
 import Foundation
 
 /// The `blueprint` command: draws a blueprint of an app icon and opens it.
