@@ -5,7 +5,15 @@ Turn your app icon into a blueprint version, like Xcode's icon, for your debug b
 Works with Icon Composer `.icon` files and classic `.appiconset` folders.
 
 <p align="center">
-  <img src="docs/results.png" width="820" alt="App icons next to their blueprints, as an Icon Composer .icon and as a flat .appiconset">
+  <img src="docs/icon.png" width="160" alt="App icon">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/debug-icon.png" width="160" alt="Its blueprint">
+</p>
+
+<p align="center">
+  <img src="docs/icon-2.png" width="160" alt="Another app icon">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/debug-icon-2.png" width="160" alt="Its blueprint">
 </p>
 
 ## Install
