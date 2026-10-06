@@ -25,10 +25,10 @@ import UniformTypeIdentifiers
         return data as Data
     }
 
-    private func writeIcon(named name: String, layer: Data) throws -> URL {
+    private func writeIcon(named name: String, layer: Data, imageName: String = "Layer.png") throws -> URL {
         let url = folder.appendingPathComponent(name)
-        let document = IconDocument(groups: [IconGroup(layers: [IconLayer(imageName: "Layer.png")])])
-        try IconComposerDescriptorFile(document: document, assets: ["Layer.png": layer]).write(to: url)
+        let document = IconDocument(groups: [IconGroup(layers: [IconLayer(imageName: imageName)])])
+        try IconComposerDescriptorFile(document: document, assets: [imageName: layer]).write(to: url)
         return url
     }
 
@@ -58,5 +58,16 @@ import UniformTypeIdentifiers
             try BlueprintIcon.generate(from: source, to: handMade, style: BlueprintStyle())
         }
         #expect(!BlueprintIcon.isBlueprint(handMade))
+    }
+
+    @Test func layerNamedPaperKeepsItsOutline() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = try writeIcon(named: "App.icon", layer: png(width: 200, height: 200, dpi: 72), imageName: "paper.png")
+        let destination = folder.appendingPathComponent("AppDebug.icon")
+
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
+
+        let assets = try FileManager.default.contentsOfDirectory(atPath: destination.appendingPathComponent("Assets").path)
+        #expect(Set(assets) == ["Blueprint Paper.svg", "Blueprint paper Layer.svg"])
     }
 }
