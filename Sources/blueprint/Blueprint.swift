@@ -13,7 +13,7 @@ struct Blueprint: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "blueprint",
         abstract: "Draw a blueprint version of an Icon Composer icon and open it in Icon Composer.",
-        version: "1.1.0"
+        version: "1.2.0"
     )
 
     // MARK: - Arguments
