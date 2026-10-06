@@ -25,6 +25,21 @@ public enum BlueprintError: Error, LocalizedError, Equatable {
     /// The associated value is the name of the source icon.
     case alreadyBlueprint(String)
 
+    /// The file isn't an `.icon` or `.appiconset`.
+    ///
+    /// The associated value is the name of the file.
+    case unsupportedFormat(String)
+
+    /// The destination's file extension doesn't match the source's format.
+    ///
+    /// The associated values are the names of the source and the destination.
+    case formatMismatch(String, String)
+
+    /// The `.appiconset` has no image to redraw.
+    ///
+    /// The associated value is the name of the icon set.
+    case emptyIconSet(String)
+
     /// Core Image or Image I/O failed to process a layer.
     case imageProcessingFailed
 
@@ -42,6 +57,12 @@ public enum BlueprintError: Error, LocalizedError, Equatable {
             "\(name) already exists and isn't a blueprint icon."
         case .alreadyBlueprint(let name):
             "\(name) is already a blueprint. Pass the original icon instead."
+        case .unsupportedFormat(let name):
+            "\(name) isn't an .icon or .appiconset."
+        case .formatMismatch(let source, let destination):
+            "\(destination) needs the same file extension as \(source)."
+        case .emptyIconSet(let name):
+            "\(name) has no image to redraw."
         case .imageProcessingFailed:
             "Image processing failed."
         case .unexpectedIconLayout:

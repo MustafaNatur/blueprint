@@ -13,13 +13,3 @@ enum IconBundle {
         bundleURL.appendingPathComponent(assetsFolderName)
     }
 }
-
-/// A decoded JSON object, as `JSONSerialization` returns it.
-typealias JSONObject = [String: Any]
-
-extension String {
-    /// The file name without its extension: `"Card.svg"` becomes `"Card"`.
-    var withoutExtension: String {
-        (self as NSString).deletingPathExtension
-    }
-}

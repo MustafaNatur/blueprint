@@ -1,0 +1,101 @@
+import AppKit
+import ImageIO
+import UniformTypeIdentifiers
+
+/// A picture with 8 bits per color channel and premultiplied alpha, stored top row first.
+struct RGBAImage {
+    let width: Int
+    let height: Int
+    let bytes: [UInt8]
+
+    /// A color channel value from 0 to 255.
+    typealias Color = (red: Double, green: Double, blue: Double)
+
+    init(width: Int, height: Int, bytes: [UInt8]) {
+        self.width = width
+        self.height = height
+        self.bytes = bytes
+    }
+
+    // MARK: - Drawing
+
+    /// Creates a picture by running the drawing code on a blank canvas of the given size.
+    init(width: Int, height: Int, draw: (CGContext) -> Void) throws {
+        guard width > 0, height > 0 else { throw BlueprintError.imageProcessingFailed }
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: Self.sRGB, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+            draw(context)
+            NSGraphicsContext.restoreGraphicsState()
+            return true
+        }
+        guard drawn else { throw BlueprintError.imageProcessingFailed }
+        self.width = width
+        self.height = height
+        self.bytes = bytes
+    }
+
+    /// Creates a picture of the image stretched to the given size.
+    init(drawing image: NSImage, width: Int, height: Int) throws {
+        let frame = CGRect(x: 0, y: 0, width: width, height: height)
+        try self.init(width: width, height: height) { _ in image.draw(in: frame) }
+    }
+
+    /// Returns this picture scaled to a square of the given side.
+    func resized(to side: Int) throws -> RGBAImage {
+        let image = try cgImage()
+        let frame = CGRect(x: 0, y: 0, width: side, height: side)
+        return try RGBAImage(width: side, height: side) { context in
+            context.interpolationQuality = .high
+            context.draw(image, in: frame)
+        }
+    }
+
+    // MARK: - Reading
+
+    func color(x: Int, y: Int) -> Color {
+        let index = (y * width + x) * 4
+        return (Double(bytes[index]), Double(bytes[index + 1]), Double(bytes[index + 2]))
+    }
+
+    /// How opaque each pixel is.
+    var alpha: AlphaMask {
+        let alphaIndexes = stride(from: 3, to: bytes.count, by: 4)
+        let alphaPixels = alphaIndexes.map { bytes[$0] }
+        return AlphaMask(width: width, height: height, pixels: alphaPixels)
+    }
+
+    // MARK: - Exporting
+
+    func cgImage() throws -> CGImage {
+        let data = Data(bytes) as CFData
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let provider = CGDataProvider(data: data),
+              let image = CGImage(
+                  width: width, height: height,
+                  bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+                  space: Self.sRGB, bitmapInfo: bitmapInfo,
+                  provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent
+              ) else { throw BlueprintError.imageProcessingFailed }
+        return image
+    }
+
+    func pngData() throws -> Data {
+        let image = try cgImage()
+        let png = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(png, UTType.png.identifier as CFString, 1, nil) else {
+            throw BlueprintError.imageProcessingFailed
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { throw BlueprintError.imageProcessingFailed }
+        return png as Data
+    }
+
+    static let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
+}
