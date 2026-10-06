@@ -20,7 +20,7 @@ struct Blueprint: ParsableCommand {
         Works with Icon Composer .icon files and asset catalog .appiconset folders, and saves \
         the blueprint in the same format.
         """,
-        version: "1.2.0"
+        version: "1.3.0"
     )
 
     // MARK: - Arguments
