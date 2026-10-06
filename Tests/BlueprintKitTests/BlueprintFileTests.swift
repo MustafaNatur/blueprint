@@ -81,4 +81,17 @@ import UniformTypeIdentifiers
         let assets = try FileManager.default.contentsOfDirectory(atPath: destination.appendingPathComponent("Assets").path)
         #expect(Set(assets) == ["Background.svg", "Grid.svg", "background 2.svg"])
     }
+
+    @Test func layersKeepTheirColorsInDarkAndTintedIcons() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = try writeIcon(named: "App.icon", layer: png(width: 200, height: 200, dpi: 72))
+        let destination = folder.appendingPathComponent("AppDebug.icon")
+
+        try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
+
+        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: destination.appendingPathComponent("icon.json"))) as! [String: Any]
+        let layers = (json["groups"] as! [[String: Any]]).flatMap { $0["layers"] as! [[String: Any]] }
+        #expect(layers.count == 3)
+        #expect(layers.allSatisfy { $0["fill"] as? String == "none" })
+    }
 }

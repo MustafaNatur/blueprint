@@ -20,7 +20,7 @@ public enum BlueprintIcon {
 
         let staging = destination.deletingLastPathComponent()
             .appendingPathComponent(".\(destination.lastPathComponent)-\(UUID().uuidString)")
-        try blueprint.write(to: staging)
+        try blueprint.writeKeepingLayerColors(to: staging)
         if fileManager.fileExists(atPath: destination.path) {
             _ = try fileManager.replaceItemAt(destination, withItemAt: staging)
         } else {
