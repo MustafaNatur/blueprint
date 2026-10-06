@@ -67,3 +67,7 @@ Then set it as the app icon of your Debug configuration in Xcode: **Primary App 
 - **How a flat `.appiconset` icon is traced.** A flat image has no layers, so blueprint separates what's in front from the background with Vision's subject lifting, the same as "Lift Subject" in Photos, and outlines it as one shape.
 - **Every slot is kept.** Dark and tinted variants, and every size of a macOS icon set, get the blueprint too, so it looks the same everywhere.
 - Running `blueprint` again replaces the blueprint it drew before. It never overwrites any other icon.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
