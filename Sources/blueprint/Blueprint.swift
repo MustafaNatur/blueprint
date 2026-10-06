@@ -2,6 +2,12 @@ import ArgumentParser
 import BlueprintKit
 import Foundation
 
+/// The `blueprint` command: draws a blueprint of an Icon Composer icon and opens it.
+///
+/// ```
+/// $ blueprint MyApp/AppIcon.icon
+/// ✓ Drew AppIconDebug.icon from 3 layers of AppIcon.icon
+/// ```
 @main
 struct Blueprint: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -28,6 +34,8 @@ struct Blueprint: ParsableCommand {
     @Flag(help: "Don't open the result in Icon Composer.")
     var noOpen = false
 
+    // MARK: - Running
+
     func run() throws {
         let style = try BlueprintStyle(
             paperHexes: color.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) },
@@ -45,6 +53,8 @@ struct Blueprint: ParsableCommand {
             try openInIconComposer(destination)
         }
     }
+
+    // MARK: - Helpers
 
     private var currentDirectory: URL {
         URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

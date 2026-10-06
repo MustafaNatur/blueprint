@@ -3,15 +3,36 @@ import CoreImage
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Redraws one icon layer as a blueprint: its silhouette becomes a white outline
-/// with a faint tint, at the layer's original point size.
+/// Redraws one layer image as a white outline of its shape.
+///
+/// The outline runs along the inside edge of the image's silhouette, and the shape
+/// itself gets a faint white tint. The result is an SVG at the image's original
+/// point size, so it drops into the layer's place unchanged.
 struct LayerTracer {
+
+    // MARK: - Configuration
+
+    /// The outline width in the finished icon, in points.
     var lineWidth: Double
+
+    /// The scale the layer draws its image at in the icon.
     var layerScale: Double
+
+    /// The number of pixels traced per point.
     var pixelScale = 2.0
 
     private let tintOpacity = 0.07
 
+    // MARK: - Tracing
+
+    /// Returns an SVG of the image's outline.
+    ///
+    /// - Parameters:
+    ///   - imageData: The layer image, in any format `NSImage` reads, such as SVG or PNG.
+    ///   - name: The image's file name, used in error messages.
+    /// - Returns: An SVG with the traced outline embedded as a PNG.
+    /// - Throws: ``BlueprintError/unreadableLayerImage(_:)`` when the data isn't an
+    ///   image, or ``BlueprintError/imageProcessingFailed`` when tracing fails.
     func trace(_ imageData: Data, named name: String) throws -> Data {
         guard let image = NSImage(data: imageData), image.size.width > 0, image.size.height > 0 else {
             throw BlueprintError.unreadableLayerImage(name)
@@ -30,17 +51,21 @@ struct LayerTracer {
         return svg(embedding: png, size: size)
     }
 
-    /// Icon Composer places bitmap layers one pixel per point, whatever DPI the file
-    /// claims, so a 144 dpi PNG must not shrink to half its size.
+    /// Returns the size Icon Composer gives an image, in points.
+    ///
+    /// Icon Composer places bitmaps one pixel per point, whatever resolution the file
+    /// claims, so a PNG saved at 144 dpi keeps its full pixel size.
     private static func pointSize(of image: NSImage) -> CGSize {
         guard let bitmap = image.representations.first as? NSBitmapImageRep else { return image.size }
         return CGSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
     }
 
+    /// The outline width in traced pixels.
     private var strokePixels: Double {
         lineWidth * pixelScale / max(layerScale, 0.01)
     }
 
+    /// Returns an SVG of the given point size that shows the PNG stretched to fill it.
     private func svg(embedding png: Data, size: CGSize) -> Data {
         let w = Self.format(size.width), h = Self.format(size.height)
         return Data("""
@@ -56,7 +81,10 @@ struct LayerTracer {
     }
 }
 
-/// An 8-bit grayscale pixel grid used for mask arithmetic.
+// MARK: - Pixel Canvas
+
+/// A pixel grid for tracing, with masks stored as one 8-bit coverage value per
+/// pixel, top row first.
 private struct PixelCanvas {
     let width: Int
     let height: Int
@@ -68,6 +96,7 @@ private struct PixelCanvas {
         height = Int((pointSize.height * pixelScale).rounded())
     }
 
+    /// Returns the image's coverage: how opaque each pixel is, from 0 to 255.
     func alphaMask(of image: NSImage) -> [UInt8] {
         var rgba = [UInt8](repeating: 0, count: width * height * 4)
         rgba.withUnsafeMutableBytes { buffer in
@@ -85,6 +114,7 @@ private struct PixelCanvas {
         return stride(from: 3, to: rgba.count, by: 4).map { rgba[$0] }
     }
 
+    /// Returns the mask shrunk inward by the given radius in pixels.
     func eroded(_ mask: [UInt8], radius: Double) throws -> [UInt8] {
         let input = CIImage(cgImage: grayImage(mask))
         let filter = CIFilter(name: "CIMorphologyMinimum", parameters: [
@@ -104,6 +134,7 @@ private struct PixelCanvas {
         return result
     }
 
+    /// Returns a PNG that's white wherever the mask covers it and transparent elsewhere.
     func whitePNG(alpha: [UInt8]) throws -> Data {
         let rgba = alpha.flatMap { [$0, $0, $0, $0] }
         let image = CGImage(

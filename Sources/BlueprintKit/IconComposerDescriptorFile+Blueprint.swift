@@ -2,11 +2,32 @@ import Foundation
 import IconKit
 
 extension IconComposerDescriptorFile {
-    /// The same composition redrawn as a blueprint: every layer keeps its name and
-    /// place, but turns into white line work on blue graph paper with no glass or shadows.
+
+    // MARK: - Drawing a Blueprint
+
+    /// Returns a blueprint of this icon, in memory.
     ///
-    /// In Icon Composer it reads as the original groups, renamed "Drawing" when
-    /// unnamed, above a "Blueprint Paper" group holding the grid and the background.
+    /// Every layer keeps its name, position and visibility, but its image is replaced
+    /// by a white outline of its shape. Glass, shadows and translucency are turned off,
+    /// and a "Blueprint Paper" group with the grid and the background is added behind
+    /// everything else. In Icon Composer the result reads:
+    ///
+    /// ```
+    /// Drawing            (or the original group's name)
+    ///   Rectangle 1      Rectangle 1.svg
+    ///   Rectangle 2      Rectangle 2.svg
+    /// Blueprint Paper
+    ///   Grid             Grid.svg
+    ///   Background       Background.svg
+    /// ```
+    ///
+    /// Use ``BlueprintIcon/generate(from:to:style:)`` to read, convert and save an
+    /// icon in one step.
+    ///
+    /// - Parameter style: The paper colors, line width and grid of the blueprint.
+    /// - Returns: The blueprint, ready to be written to disk.
+    /// - Throws: ``BlueprintError/missingLayerImage(_:)`` when a layer refers to an
+    ///   image that isn't in the bundle, and any error from tracing a layer.
     public func blueprint(style: BlueprintStyle) throws -> IconComposerDescriptorFile {
         if let missing = validateAssets().first {
             throw BlueprintError.missingLayerImage(missing)
@@ -38,16 +59,25 @@ extension IconComposerDescriptorFile {
         return IconComposerDescriptorFile(document: document, assets: assets)
     }
 
+    // MARK: - Paper Names
+
+    /// The name of the group that holds the paper, which also marks an icon as a blueprint.
     static let paperGroupName = "Blueprint Paper"
+
+    /// The file name of the grid image.
     static let gridAssetName = "Grid.svg"
+
+    /// The file name of the background image.
     static let backgroundAssetName = "Background.svg"
 
-    /// Each traced image is named after the first layer that shows it, so the
-    /// files in Assets match the layer list. Images used only in appearance
-    /// variants keep their own names.
+    // MARK: - Layer Images
+
+    /// Returns the file name of each traced image, keyed by the original image name.
     ///
-    /// Names are compared ignoring case: they become file names, and on a
-    /// case-insensitive disk a layer called `background` would overwrite the paper.
+    /// A traced image is named after the first layer that shows it, so the files in
+    /// `Assets` match the layer list; images used only in appearance variants keep
+    /// their own names. Names are unique ignoring case, because they become file
+    /// names on a case-insensitive disk, and never clash with the paper images.
     private func tracedAssetNames() -> [String: String] {
         var names: [String: String] = [:]
         var taken: Set<String> = [Self.gridAssetName.lowercased(), Self.backgroundAssetName.lowercased()]
@@ -75,8 +105,10 @@ extension IconComposerDescriptorFile {
         return names
     }
 
-    /// Line width is set in final icon points, so it is divided by the scale the
-    /// layer is drawn at; the largest scale keeps lines from getting too thick.
+    /// Returns the largest scale any layer draws an image at.
+    ///
+    /// Outlines are traced at the image's own size, so dividing the line width by
+    /// this scale keeps them at the requested width in the finished icon.
     private func largestScale(of imageName: String) -> Double {
         let scales = document.groups.flatMap(\.layers)
             .filter { $0.imageName == imageName || $0.imageNameSpecializations?.contains { $0.value == imageName } == true }
@@ -85,7 +117,10 @@ extension IconComposerDescriptorFile {
     }
 }
 
+// MARK: - Flat Groups and Layers
+
 private extension IconGroup {
+    /// Creates a group drawn flat, without shadow, translucency or specular highlights.
     static func flat(name: String?, layers: [IconLayer]) -> IconGroup {
         IconGroup(
             name: name,
@@ -96,6 +131,7 @@ private extension IconGroup {
         )
     }
 
+    /// Returns this group drawn flat, with its layers pointing at their traced images.
     func flattened(renaming tracedNames: [String: String], fallbackName: String) -> IconGroup {
         var group = IconGroup.flat(name: name ?? fallbackName, layers: layers.map { $0.flattened(renaming: tracedNames) })
         group.id = id
@@ -107,6 +143,7 @@ private extension IconGroup {
 }
 
 private extension IconLayer {
+    /// Returns this layer without glass, showing its traced image in the same place.
     func flattened(renaming tracedNames: [String: String]) -> IconLayer {
         let tracedName = imageName.flatMap { tracedNames[$0] }
         return IconLayer(
