@@ -8,6 +8,9 @@ public enum BlueprintIcon {
     @discardableResult
     public static func generate(from source: URL, to destination: URL, style: BlueprintStyle) throws -> Int {
         let fileManager = FileManager.default
+        if isBlueprint(source) {
+            throw BlueprintError.alreadyBlueprint(source.lastPathComponent)
+        }
         if fileManager.fileExists(atPath: destination.path), !isBlueprint(destination) {
             throw BlueprintError.wouldOverwriteIcon(destination.lastPathComponent)
         }
@@ -26,10 +29,15 @@ public enum BlueprintIcon {
         return original.document.groups.flatMap(\.layers).count
     }
 
-    /// Whether the `.icon` at `url` was drawn by blueprint.
+    /// Whether the `.icon` at `url` was drawn by blueprint: it has the paper group,
+    /// or, from blueprint 1.0.0, the single paper image.
     public static func isBlueprint(_ url: URL) -> Bool {
-        FileManager.default.fileExists(
-            atPath: url.appendingPathComponent("Assets").appendingPathComponent(IconComposerDescriptorFile.paperAssetName).path
-        )
+        if FileManager.default.fileExists(atPath: url.appendingPathComponent("Assets/Blueprint Paper.svg").path) {
+            return true
+        }
+        guard let data = FileManager.default.contents(atPath: url.appendingPathComponent("icon.json").path),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let groups = json["groups"] as? [[String: Any]] else { return false }
+        return groups.contains { $0["name"] as? String == IconComposerDescriptorFile.paperGroupName }
     }
 }

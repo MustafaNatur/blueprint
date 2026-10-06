@@ -34,22 +34,37 @@ import Testing
         #expect(card.position == IconPosition(scale: 0.9, translationInPoints: [108, -168]))
         #expect(card.glass == false)
         #expect(card.opacity == nil)
-        #expect(card.imageName == "Blueprint Card.svg")
+        #expect(card.name == "Card")
+        #expect(card.imageName == "Card.svg")
         #expect(blueprint.document.groups.first?.shadow?.kind == IconShadow.Kind.none)
         #expect(blueprint.validateAssets().isEmpty)
     }
 
-    @Test func paperSitsBehindEverything() throws {
-        let blueprint = try icon().blueprint(style: BlueprintStyle())
-        #expect(blueprint.document.groups.count == 2)
-        #expect(blueprint.document.groups.last?.layers.first?.imageName == IconComposerDescriptorFile.paperAssetName)
+    @Test func namesGroupsAndLayersForIconComposer() throws {
+        let groups = try icon().blueprint(style: BlueprintStyle()).document.groups
+        #expect(groups.map(\.name) == ["Drawing", "Blueprint Paper"])
+        #expect(groups[0].layers.map(\.name) == ["Card"])
+        #expect(groups[1].layers.map(\.name) == ["Grid", "Background"])
+        #expect(groups[1].layers.map(\.imageName) == ["Grid.svg", "Background.svg"])
     }
 
-    @Test func noGridKeepsTheGradient() throws {
-        let paper = try #require(try icon().blueprint(style: BlueprintStyle(showsGrid: false)).assets[IconComposerDescriptorFile.paperAssetName])
-        let svg = String(decoding: paper, as: UTF8.self)
-        #expect(svg.contains("#0AC2FC") && svg.contains("#1A6FFB"))
-        #expect(!svg.contains("<line "))
+    @Test func noGridKeepsTheBackground() throws {
+        let blueprint = try icon().blueprint(style: BlueprintStyle(showsGrid: false))
+        #expect(blueprint.document.groups.last?.layers.map(\.name) == ["Background"])
+        #expect(blueprint.assets["Grid.svg"] == nil)
+        let background = String(decoding: try #require(blueprint.assets["Background.svg"]), as: UTF8.self)
+        #expect(background.contains("#0AC2FC") && background.contains("#1A6FFB"))
+    }
+
+    @Test func keepsFileNamesUniqueAndClearOfThePaper() throws {
+        var icon = icon()
+        icon.document.groups[0].layers = [
+            IconLayer(name: "Background", imageName: "Card.svg"),
+            IconLayer(name: "Background", imageName: "Other.svg"),
+        ]
+        icon.assets["Other.svg"] = icon.assets["Card.svg"]
+        let names = Set(try icon.blueprint(style: BlueprintStyle()).assets.keys)
+        #expect(names == ["Background 2.svg", "Background 3.svg", "Grid.svg", "Background.svg"])
     }
 
     @Test func readsIconComposerNoneFills() throws {

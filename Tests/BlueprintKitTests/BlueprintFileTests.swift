@@ -39,7 +39,7 @@ import UniformTypeIdentifiers
 
         try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
 
-        let svg = try String(contentsOf: destination.appendingPathComponent("Assets/Blueprint Layer.svg"), encoding: .utf8)
+        let svg = try String(contentsOf: destination.appendingPathComponent("Assets/Layer.svg"), encoding: .utf8)
         #expect(svg.hasPrefix(#"<svg width="400" height="300""#))
     }
 
@@ -60,14 +60,25 @@ import UniformTypeIdentifiers
         #expect(!BlueprintIcon.isBlueprint(handMade))
     }
 
-    @Test func layerNamedPaperKeepsItsOutline() throws {
+    @Test func refusesToRedrawABlueprint() throws {
         defer { try? FileManager.default.removeItem(at: folder) }
-        let source = try writeIcon(named: "App.icon", layer: png(width: 200, height: 200, dpi: 72), imageName: "paper.png")
+        let source = try writeIcon(named: "App.icon", layer: png(width: 200, height: 200, dpi: 72))
+        let blueprint = folder.appendingPathComponent("AppDebug.icon")
+        try BlueprintIcon.generate(from: source, to: blueprint, style: BlueprintStyle())
+
+        #expect(throws: BlueprintError.self) {
+            try BlueprintIcon.generate(from: blueprint, to: folder.appendingPathComponent("AppDebugDebug.icon"), style: BlueprintStyle())
+        }
+    }
+
+    @Test func layerNamedLikeThePaperKeepsItsOutline() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = try writeIcon(named: "App.icon", layer: png(width: 200, height: 200, dpi: 72), imageName: "background.png")
         let destination = folder.appendingPathComponent("AppDebug.icon")
 
         try BlueprintIcon.generate(from: source, to: destination, style: BlueprintStyle())
 
         let assets = try FileManager.default.contentsOfDirectory(atPath: destination.appendingPathComponent("Assets").path)
-        #expect(Set(assets) == ["Blueprint Paper.svg", "Blueprint paper Layer.svg"])
+        #expect(Set(assets) == ["Background.svg", "Grid.svg", "background 2.svg"])
     }
 }
