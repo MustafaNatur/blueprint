@@ -1,3 +1,4 @@
+import AppKit
 import BlueprintCore
 import BlueprintTestSupport
 import Foundation
@@ -19,9 +20,19 @@ import Testing
         try? FileManager.default.removeItem(at: catalog)
     }
 
-    private func drawBlueprint() throws {
-        let blueprint = try format.blueprint(of: source, style: BlueprintStyle())
+    private func drawBlueprint(style: BlueprintStyle? = nil) throws {
+        let style = try style ?? BlueprintStyle()
+        let blueprint = try format.blueprint(of: source, style: style)
         try blueprint.write(to: destination)
+    }
+
+    /// The red, green, blue and alpha of a pixel of the 1024 × 1024 blueprint, counted from the top left.
+    private func blueprintPixel(x: Int, y: Int) throws -> [UInt8] {
+        let imageURL = destination.appendingPathComponent("Blueprint 1024.png")
+        let image = try #require(NSImage(contentsOf: imageURL))
+        let picture = try RGBAImage(drawing: image, width: 1024, height: 1024)
+        let start = (y * picture.width + x) * 4
+        return Array(picture.bytes[start..<start + 4])
     }
 
     private func blueprintFileNames() throws -> Set<String> {
@@ -69,6 +80,19 @@ import Testing
         let imageSource = try #require(CGImageSourceCreateWithURL(imageURL as CFURL, nil))
         let image = try #require(CGImageSourceCreateImageAtIndex(imageSource, 0, nil))
         #expect(image.width == 1024 && image.height == 1024)
+    }
+
+    @Test func badgeIsDrawnInTheBottomRightCorner() throws {
+        try Fixtures.writeIconSet(at: source, slots: [Fixtures.iosSlot()])
+        let besideTheBadgeText = (x: 920, y: 772)
+
+        try drawBlueprint()
+        let withoutBadge = try blueprintPixel(x: besideTheBadgeText.x, y: besideTheBadgeText.y)
+        try drawBlueprint(style: BlueprintStyle(badge: BlueprintBadge(text: "DEV")))
+        let withBadge = try blueprintPixel(x: besideTheBadgeText.x, y: besideTheBadgeText.y)
+
+        #expect(withoutBadge != [255, 255, 255, 255])
+        #expect(withBadge == [255, 255, 255, 255])
     }
 
     @Test func iconSetWithoutImagesIsAnError() throws {
