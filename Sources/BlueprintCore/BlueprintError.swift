@@ -30,6 +30,9 @@ public enum BlueprintError: Error, LocalizedError, Equatable {
     /// The associated value is the color as given.
     case invalidColor(String)
 
+    /// A badge has no text, or only spaces and line breaks.
+    case emptyBadge
+
     /// The file isn't an `.icon` or `.appiconset`.
     ///
     /// The associated value is the name of the file.
@@ -67,6 +70,8 @@ public enum BlueprintError: Error, LocalizedError, Equatable {
             "\(name) is already a blueprint. Pass the original icon instead."
         case .invalidColor(let color):
             "\(color.isEmpty ? "No color" : color) isn't a #RRGGBB hex color."
+        case .emptyBadge:
+            "The badge has no text."
         case .unsupportedFormat(let name):
             "\(name) isn't an .icon or .appiconset."
         case .formatMismatch(let source, let destination):
