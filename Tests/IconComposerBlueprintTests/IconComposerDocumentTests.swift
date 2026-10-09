@@ -93,6 +93,36 @@ import Testing
         #expect(BlueprintStyle.xcodeBackgroundColors.allSatisfy(background.contains))
     }
 
+    // MARK: - Badge
+
+    @Test func badgeIsAGroupInFrontOfTheDrawing() throws {
+        let style = try BlueprintStyle(badge: BlueprintBadge(text: "UAT"))
+        let blueprint = try icon().blueprint(style: style)
+        let groups = blueprint.document.groups
+
+        #expect(groups.map(\.name) == ["Badge", "Drawing", "Blueprint Paper"])
+        #expect(groups[0].layers.map(\.imageName) == ["Badge.svg"])
+        #expect(blueprint.assets["Badge.svg"] != nil)
+        #expect(blueprint.validateAssets().isEmpty)
+    }
+
+    @Test func withoutBadgeThereIsNoBadgeGroup() throws {
+        let blueprint = try icon().blueprint(style: BlueprintStyle())
+
+        #expect(!blueprint.document.groups.contains { $0.name == "Badge" })
+        #expect(blueprint.assets["Badge.svg"] == nil)
+    }
+
+    @Test func layerNamedBadgeKeepsItsOutline() throws {
+        var icon = icon()
+        icon.document.groups[0].layers = [IconLayer(name: "Badge", imageName: "Card.svg")]
+
+        let blueprint = try icon.blueprint(style: BlueprintStyle(badge: BlueprintBadge(text: "DEV")))
+
+        #expect(blueprint.document.groups[1].layers.map(\.imageName) == ["Badge 2.svg"])
+        #expect(blueprint.assets["Badge 2.svg"] != nil)
+    }
+
     // MARK: - File Names
 
     @Test func layersWithTheSameNameGetNumberedFiles() throws {
