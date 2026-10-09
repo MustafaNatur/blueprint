@@ -10,6 +10,9 @@ import Foundation
 ///
 /// $ blueprint MyApp/Assets.xcassets/AppIcon.appiconset
 /// ✓ Drew AppIconDebug.appiconset from 1 layer of AppIcon.appiconset
+///
+/// $ blueprint MyApp/AppIcon.icon --badge UAT --output AppIconUAT.icon
+/// ✓ Drew AppIconUAT.icon with a badge from 3 layers of AppIcon.icon
 /// ```
 @main
 struct Blueprint: ParsableCommand {
@@ -40,6 +43,12 @@ struct Blueprint: ParsableCommand {
     @Option(help: "Outline width, in icon points (the icon is 1024 pt).")
     var lineWidth = 9.0
 
+    @Option(help: """
+    Text of a badge in the bottom right corner, such as DEV, UAT or BETA. Long text wraps \
+    onto more lines. Drawn in the last --color.
+    """)
+    var badge: String?
+
     @Flag(inversion: .prefixedNo, help: "Draw the grid behind the drawing.")
     var grid = true
 
@@ -49,16 +58,17 @@ struct Blueprint: ParsableCommand {
     // MARK: - Running
 
     func run() throws {
-        let layerCount = try drawBlueprint()
+        let style = try style()
+        let layerCount = try drawBlueprint(style: style)
         let layers = layerCount == 1 ? "1 layer" : "\(layerCount) layers"
-        print("✓ Drew \(destination.lastPathComponent) from \(layers) of \(source.lastPathComponent)")
+        let badgeNote = style.badge == nil ? "" : " with a badge"
+        print("✓ Drew \(destination.lastPathComponent)\(badgeNote) from \(layers) of \(source.lastPathComponent)")
         if open {
             show(destination)
         }
     }
 
-    private func drawBlueprint() throws -> Int {
-        let style = try style()
+    private func drawBlueprint(style: BlueprintStyle) throws -> Int {
         do {
             return try BlueprintIcon.generate(from: source, to: destination, style: style)
         } catch BlueprintError.wouldOverwriteIcon(let name) {
@@ -93,7 +103,8 @@ struct Blueprint: ParsableCommand {
 
     private func style() throws -> BlueprintStyle {
         let backgroundColors = color.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        return try BlueprintStyle(backgroundColors: backgroundColors, lineWidth: lineWidth, showsGrid: grid)
+        let blueprintBadge = try badge.map(BlueprintBadge.init(text:))
+        return try BlueprintStyle(backgroundColors: backgroundColors, lineWidth: lineWidth, showsGrid: grid, badge: blueprintBadge)
     }
 
     // MARK: - Showing the Result
