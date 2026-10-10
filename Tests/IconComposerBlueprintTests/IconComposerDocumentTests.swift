@@ -161,4 +161,25 @@ import Testing
         let layout = try IconComposerDescriptorFile.readingLayout(of: bundle)
         #expect(layout.allLayers.first?.position == cardPosition)
     }
+
+    @Test func readsAndKeepsPlatformSpecificSquares() throws {
+        var icon = icon()
+        icon.document.supportedPlatforms = SupportedPlatforms(squares: .shared)
+        let bundle = try bundle(of: icon) {
+            $0.replacingOccurrences(of: #""squares" : "shared""#, with: #""squares" : ["iOS", "macOS"]"#)
+        }
+        defer { try? FileManager.default.removeItem(at: bundle) }
+
+        #expect(throws: (any Error).self) { try IconComposerDescriptorFile(contentsOf: bundle) }
+        let layout = try IconComposerDescriptorFile.readingLayout(of: bundle)
+        #expect(layout.document.supportedPlatforms?.squares == .platforms(["iOS", "macOS"]))
+
+        let output = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).icon")
+        defer { try? FileManager.default.removeItem(at: output) }
+        try layout.blueprint(style: BlueprintStyle()).writeKeepingLayerColors(to: output)
+        let descriptorData = try Data(contentsOf: IconBundle.descriptorURL(in: output))
+        let descriptor = try #require(try JSONSerialization.jsonObject(with: descriptorData) as? JSONObject)
+        let supportedPlatforms = try #require(descriptor["supported-platforms"] as? JSONObject)
+        #expect(supportedPlatforms["squares"] as? [String] == ["iOS", "macOS"])
+    }
 }
