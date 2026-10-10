@@ -44,6 +44,16 @@ import Testing
         #expect(BlueprintIcon.isBlueprint(destination))
     }
 
+    @Test(arguments: formats) func badgedBlueprintIsStillABlueprint(_ fileExtension: String) throws {
+        let source = try writeIcon(named: "App.\(fileExtension)")
+        let destination = url("AppUAT.\(fileExtension)")
+        let style = try BlueprintStyle(badge: BlueprintBadge(text: "UAT"))
+
+        try BlueprintIcon.generate(from: source, to: destination, style: style)
+
+        #expect(BlueprintIcon.isBlueprint(destination))
+    }
+
     @Test func refusesOtherFiles() throws {
         #expect(throws: BlueprintError.unsupportedFormat("Logo.png")) {
             try BlueprintIcon.generate(from: self.url("Logo.png"), to: self.url("LogoDebug.png"), style: BlueprintStyle())

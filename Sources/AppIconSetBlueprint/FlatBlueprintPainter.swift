@@ -1,7 +1,8 @@
 import AppKit
 import BlueprintCore
 
-/// Paints the blueprint of a flat icon: the paper, with the icon's line work in white on top.
+/// Paints the blueprint of a flat icon: the paper, with the icon's line work in white on
+/// top, and the badge over everything if the style has one.
 ///
 /// The paper is drawn from the same SVG images an `.icon` blueprint uses, so both formats
 /// look alike.
@@ -23,15 +24,23 @@ struct FlatBlueprintPainter {
         let icon = try RGBAImage(drawing: image, width: size, height: size)
         let lineArt = try tracer.lineArt(of: icon)
         let paper = try paperImages()
-        let lineImage = try lineArt.whiteImage().cgImage()
+        let overlays = try [lineArt.whiteImage().cgImage()] + badgeImages()
 
         let frame = CGRect(x: 0, y: 0, width: size, height: size)
         return try RGBAImage(width: size, height: size) { context in
             for sheet in paper {
                 sheet.draw(in: frame)
             }
-            context.draw(lineImage, in: frame)
+            for overlay in overlays {
+                context.draw(overlay, in: frame)
+            }
         }
+    }
+
+    /// The badge if the style has one, ready to draw.
+    private func badgeImages() throws -> [CGImage] {
+        guard let badgePainter = BadgePainter(style: style) else { return [] }
+        return [try badgePainter.image(side: size).cgImage()]
     }
 
     /// The background, then the grid if the style shows one, ready to draw.

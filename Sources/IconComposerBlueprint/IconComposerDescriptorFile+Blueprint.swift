@@ -11,9 +11,12 @@ extension IconComposerDescriptorFile {
     /// Every layer keeps its name, position and visibility, but its image is replaced
     /// by a white outline of its shape. Glass, shadows and translucency are turned off,
     /// and a "Blueprint Paper" group with the grid and the background is added behind
-    /// everything else. In Icon Composer the result reads:
+    /// everything else. A style with a badge adds a "Badge" group in front. In Icon
+    /// Composer the result reads:
     ///
     /// ```
+    /// Badge              (only with a badge)
+    ///   Badge            Badge.svg
     /// Drawing            (or the original group's name)
     ///   Rectangle 1      Rectangle 1.svg
     ///   Rectangle 2      Rectangle 2.svg
@@ -25,7 +28,7 @@ extension IconComposerDescriptorFile {
     /// Use ``BlueprintIcon/generate(from:to:style:)`` to read, convert and save an
     /// icon in one step.
     ///
-    /// - Parameter style: The background colors, line width and grid of the blueprint.
+    /// - Parameter style: The background colors, line width, grid and badge of the blueprint.
     /// - Returns: The blueprint, ready to be written to disk.
     /// - Throws: ``BlueprintError/missingLayerImage(_:)`` when a layer refers to an
     ///   image that isn't in the bundle, and any error from tracing a layer.
@@ -36,15 +39,18 @@ extension IconComposerDescriptorFile {
         let drawingGroups = drawingGroups(showing: outlineFileNames)
         let paperGroup = Self.paperGroup(style)
         let paperImages = Self.paperImages(style)
+        let badgeGroups = Self.badgeGroups(style)
+        let badgeImages = try Self.badgeImages(style)
 
         let fillColor = try parseHexIconColor(style.middleBackgroundColor)
 
         var blueprint = document
         blueprint.fill = .solid(fillColor)
         blueprint.fillSpecializations = nil
-        blueprint.groups = drawingGroups + [paperGroup]
+        blueprint.groups = badgeGroups + drawingGroups + [paperGroup]
 
-        let assets = outlines.merging(paperImages) { _, paperImage in paperImage }
+        let blueprintImages = paperImages.merging(badgeImages) { _, badgeImage in badgeImage }
+        let assets = outlines.merging(blueprintImages) { _, blueprintImage in blueprintImage }
         return IconComposerDescriptorFile(document: blueprint, assets: assets)
     }
 
@@ -90,7 +96,7 @@ extension IconComposerDescriptorFile {
         }
         let titledImages = layerImages + allImages
 
-        var fileNames = UniqueFileNames(reserving: [Self.gridFileName, Self.backgroundFileName])
+        var fileNames = UniqueFileNames(reserving: [Self.gridFileName, Self.backgroundFileName, Self.badgeFileName])
         var outlineFileNames: [String: String] = [:]
         for (imageName, title) in titledImages where outlineFileNames[imageName] == nil {
             outlineFileNames[imageName] = fileNames.next(for: title)
@@ -126,6 +132,24 @@ extension IconComposerDescriptorFile {
             images[gridFileName] = BlueprintPaper.grid()
         }
         return images
+    }
+}
+
+// MARK: - Badge
+
+extension IconComposerDescriptorFile {
+    static let badgeFileName = "Badge.svg"
+
+    /// The group in front of the drawing that shows the badge, if the style has one.
+    private static func badgeGroups(_ style: BlueprintStyle) -> [IconGroup] {
+        guard style.badge != nil else { return [] }
+        let badge = IconLayer(name: "Badge", imageName: badgeFileName, glass: false)
+        return [.matte(name: "Badge", layers: [badge])]
+    }
+
+    private static func badgeImages(_ style: BlueprintStyle) throws -> [String: Data] {
+        guard let badgePainter = BadgePainter(style: style) else { return [:] }
+        return [badgeFileName: try badgePainter.svg()]
     }
 }
 
