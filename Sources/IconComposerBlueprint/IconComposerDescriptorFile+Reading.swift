@@ -12,7 +12,8 @@ extension IconComposerDescriptorFile {
     /// Fills, shadows, glass, blend modes and other materials are left out before
     /// decoding, because a blueprint replaces them. That also avoids values Icon
     /// Composer writes that IconKit 1.2 can't decode, such as `"fill": "none"` and
-    /// the `"layer-color"` shadow.
+    /// the `"layer-color"` shadow. Platform-specific `"squares"` are rewritten into
+    /// the form IconKit 1.2 expects.
     ///
     /// - Parameter bundleURL: The location of the `.icon` bundle.
     /// - Returns: The icon's layout and every file in its `Assets` folder.
@@ -22,7 +23,7 @@ extension IconComposerDescriptorFile {
         let descriptorData = try Data(contentsOf: descriptorURL)
         let descriptor = try JSONSerialization.jsonObject(with: descriptorData)
 
-        let layout = withoutMaterials(descriptor)
+        let layout = withPlatformsKeyedSquares(withoutMaterials(descriptor))
         let layoutData = try JSONSerialization.data(withJSONObject: layout)
         let document = try JSONDecoder().decode(IconDocument.self, from: layoutData)
 
@@ -39,6 +40,22 @@ extension IconComposerDescriptorFile {
             files[fileURL.lastPathComponent] = try Data(contentsOf: fileURL)
         }
         return files
+    }
+
+    // MARK: - Supported Platforms
+
+    /// Returns the descriptor with platform-specific squares in the form IconKit 1.2 decodes.
+    ///
+    /// Icon Composer writes `"squares": ["iOS", "macOS"]`, but IconKit 1.2 only decodes
+    /// `"shared"` or `{"platforms": ["iOS", "macOS"]}`.
+    private static func withPlatformsKeyedSquares(_ descriptor: Any) -> Any {
+        guard var object = descriptor as? JSONObject,
+              var supportedPlatforms = object["supported-platforms"] as? JSONObject,
+              let platforms = supportedPlatforms["squares"] as? [Any] else { return descriptor }
+
+        supportedPlatforms["squares"] = ["platforms": platforms]
+        object["supported-platforms"] = supportedPlatforms
+        return object
     }
 
     // MARK: - Materials
