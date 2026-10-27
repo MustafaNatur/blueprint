@@ -19,7 +19,7 @@ package struct BadgePainter {
     }
 
     private static let pixelsPerPoint = 2.0
-    private static let borderWidth: CGFloat = 8
+    private static let borderWidth: CGFloat = 12
 
     // MARK: - Images
 
