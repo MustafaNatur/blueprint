@@ -10,12 +10,12 @@ package struct BadgeLayout {
 
     // MARK: - Measurements
 
-    static let singleLineHeight: CGFloat = 184
-    static let fullFontSize: CGFloat = 112
+    static let singleLineHeight: CGFloat = 276
+    static let fullFontSize: CGFloat = 168
     static let smallestFontSize: CGFloat = 8
     static let shrinkStep: CGFloat = 0.9
-    static let horizontalPadding: CGFloat = 56
-    static let verticalPadding: CGFloat = 24
+    static let horizontalPadding: CGFloat = 84
+    static let verticalPadding: CGFloat = 36
     static let rightEdge: CGFloat = 944
     static let leftLimit: CGFloat = 80
     static let bottomEdge: CGFloat = 160

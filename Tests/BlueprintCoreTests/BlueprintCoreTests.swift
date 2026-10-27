@@ -73,6 +73,16 @@ import Testing
         #expect(layout.cornerRadius == layout.frame.height / 2)
     }
 
+    @Test func badgeStaysInsideTheRoundedCornerOfTheMask() {
+        let layout = BadgeLayout(measure: measure(characterCount: 3))
+        let maskCornerRadius: CGFloat = 230
+        let maskCornerCenter = CGPoint(x: 1024 - maskCornerRadius, y: maskCornerRadius)
+        let badgeCornerCenter = CGPoint(x: layout.frame.maxX - layout.cornerRadius, y: layout.frame.minY + layout.cornerRadius)
+
+        let distance = hypot(badgeCornerCenter.x - maskCornerCenter.x, badgeCornerCenter.y - maskCornerCenter.y)
+        #expect(distance + layout.cornerRadius <= maskCornerRadius)
+    }
+
     @Test func textIsInTheMiddleOfTheBadge() {
         let layout = BadgeLayout(measure: measure(characterCount: 30))
 
@@ -122,7 +132,7 @@ import Testing
     @Test func badgeImageIsWhiteInsideTheBadgeAndClearOutside() throws {
         let image = try painter(text: "DEV").image(side: 1024)
 
-        let besideTheText = rgba(of: image, x: Int(BadgeLayout.rightEdge) - 24, y: 1024 - Int(BadgeLayout.bottomEdge) - 92)
+        let besideTheText = rgba(of: image, x: Int(BadgeLayout.rightEdge) - 24, y: 1024 - Int(BadgeLayout.bottomEdge + BadgeLayout.singleLineHeight / 2))
         let topLeft = rgba(of: image, x: 100, y: 100)
         #expect(besideTheText == [255, 255, 255, 255])
         #expect(topLeft == [0, 0, 0, 0])
