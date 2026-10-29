@@ -8,8 +8,14 @@ package enum BlueprintPaper {
 
     package static let canvasSize = 1024.0
     static let gridDivisions = 4
+
+    // Measured from Xcode's own icon, rendered at 1024 pt with Icon Composer's ictool.
+
     static let gridLineWidth = 9.0
+    /// The opacity of the whole grid, applied once so lines don't get brighter where they cross.
     static let gridLineOpacity = 0.25
+    /// The corner radius of Icon Composer's mask, as a fraction of the canvas.
+    static let maskCornerRadiusRatio = 0.26
 
     // MARK: - Images
 
@@ -29,22 +35,27 @@ package enum BlueprintPaper {
     ///
     /// As in Xcode's icon, each corner square is outlined along the icon's rounded corner,
     /// and the grid lines next to the corners end where they turn into those outlines.
-    /// Only the lines through the middle run from edge to edge.
+    /// The other lines never meet a corner square, so they run from edge to edge.
     package static func grid() -> Data {
-        let corner = GridCorner(gridLine: firstGridLine)
-        let start = corner.gridLineStart, end = canvasSize - start
+        let corner = GridCorner(gridLine: firstGridLine, maskCornerRadius: canvasSize * maskCornerRadiusRatio)
         let lines = innerGridLinePositions.flatMap { position in
-            let isMiddle = position == canvasSize / 2
-            let from = isMiddle ? 0 : start, to = isMiddle ? canvasSize : end
-            let vertical = gridLine(from: (position, from), to: (position, to))
-            let horizontal = gridLine(from: (from, position), to: (to, position))
+            let meetsCorners = position == firstGridLine || position == lastGridLine
+            let start = meetsCorners ? corner.gridLineStart : 0
+            let end = canvasSize - start
+            let vertical = gridLine(from: (position, start), to: (position, end))
+            let horizontal = gridLine(from: (start, position), to: (end, position))
             return [vertical, horizontal]
         }
-        let corners = cornerMirrors.map { mirror in
-            gridOutline(corner.pathData, transform: mirror)
+        let corners = CornerMirror.allCases.map { mirror in
+            gridOutline(corner.pathData, transform: mirror.transform)
         }
         let strokes = (lines + corners).joined(separator: "\n")
-        let body = "<g opacity='\(gridLineOpacity)' stroke='white' stroke-width='\(SVG.number(gridLineWidth))' fill='none'>\n\(strokes)\n</g>"
+        let width = SVG.number(gridLineWidth)
+        let body = """
+        <g opacity='\(gridLineOpacity)' stroke='white' stroke-width='\(width)' fill='none'>
+        \(strokes)
+        </g>
+        """
         return SVG.document(width: canvasSize, height: canvasSize, body: body)
     }
 
@@ -62,14 +73,28 @@ package enum BlueprintPaper {
         canvasSize / Double(gridDivisions)
     }
 
+    private static var lastGridLine: Double {
+        canvasSize - firstGridLine
+    }
+
     private static var innerGridLinePositions: [Double] {
         (1..<gridDivisions).map { canvasSize * Double($0) / Double(gridDivisions) }
     }
 
-    /// The transforms that turn the top left corner into each of the four corners.
-    private static var cornerMirrors: [String?] {
-        let size = SVG.number(canvasSize)
-        return [nil, "matrix(-1 0 0 1 \(size) 0)", "matrix(1 0 0 -1 0 \(size))", "matrix(-1 0 0 -1 \(size) \(size))"]
+    /// The four corners of the grid, drawn by mirroring the top left one.
+    private enum CornerMirror: CaseIterable {
+        case topLeft, topRight, bottomLeft, bottomRight
+
+        /// The SVG transform that turns the top left corner into this one.
+        var transform: String? {
+            let size = SVG.number(canvasSize)
+            switch self {
+            case .topLeft: return nil
+            case .topRight: return "matrix(-1 0 0 1 \(size) 0)"
+            case .bottomLeft: return "matrix(1 0 0 -1 0 \(size))"
+            case .bottomRight: return "matrix(-1 0 0 -1 \(size) \(size))"
+            }
+        }
     }
 
     /// Returns a grid line. Its stroke comes from the group around the grid, which fades

@@ -9,33 +9,39 @@ struct GridCorner {
 
     // MARK: - Measurements
 
-    /// The corner radius of Icon Composer's mask, a continuous curve like the one
-    /// `RoundedRectangle(style: .continuous)` draws.
-    static let maskCornerRadius = 266.0
+    // Measured from Xcode's own icon, rendered at 1024 pt with Icon Composer's ictool.
+
     /// How far inside the mask's edge the outline runs.
     static let inset = 10.0
+    /// The radius of the curve where the outline turns into a grid line.
     static let filletRadius = 34.0
-
-    /// The position of the grid lines the outline turns into, on both axes.
-    let gridLine: Double
 
     // MARK: - Outline
 
     /// Where the outline turns into the vertical grid line, measured from the top. The
     /// horizontal grid line starts at the same distance from the left.
-    var gridLineStart: Double {
-        fillets.top.center.y
-    }
+    let gridLineStart: Double
 
     /// The SVG path data of the outline, from the horizontal grid line, around the
     /// corner, to the vertical grid line.
-    var pathData: String {
-        let (left, top) = fillets
+    let pathData: String
+
+    /// Creates the outline of the square between the mask's corner and the grid lines
+    /// at `gridLine` on both axes.
+    ///
+    /// - Parameter maskCornerRadius: The corner radius of Icon Composer's mask, a
+    ///   continuous curve like the one `RoundedRectangle(style: .continuous)` draws.
+    init(gridLine: Double, maskCornerRadius: Double) {
+        let maskCorner = Self.maskCorner(radius: maskCornerRadius)
+        let (left, top) = Self.fillets(along: maskCorner, gridLine: gridLine)
+        let outline = maskCorner.map { $0.offset(by: Self.inset) }
+        // The points along the corner between the two fillets.
+        let curve = outline[(left.index + 1)...top.index].map(\.point)
+
         let radius = SVG.number(Self.filletRadius)
-        let corner = Self.maskCorner.map { $0.offset(by: Self.inset) }
-        let curve = corner[(left.index + 1)...top.index].map(\.point)
         let curveCommands = curve.map { "L\(Self.coordinates($0))" }.joined(separator: " ")
-        return [
+        gridLineStart = top.center.y
+        pathData = [
             "M\(Self.coordinates(CGPoint(x: left.center.x, y: gridLine)))",
             "A\(radius) \(radius) 0 0 1 \(Self.coordinates(left.tangentPoint))",
             curveCommands,
@@ -58,21 +64,29 @@ struct GridCorner {
     ///
     /// A fillet's center is as far from the outline as from the grid line, so it lies on
     /// the mask's edge moved inward by the inset plus the fillet's radius.
-    private var fillets: (left: Fillet, top: Fillet) {
-        let centers = Self.maskCorner.map { $0.offset(by: Self.inset + Self.filletRadius) }
-        let centerLine = gridLine - Self.filletRadius
-        let left = Self.fillet(along: centers, where: { $0.y }, crosses: centerLine)
-        let top = Self.fillet(along: centers, where: { $0.x }, crosses: centerLine)
+    private static func fillets(along maskCorner: [EdgePoint], gridLine: Double) -> (left: Fillet, top: Fillet) {
+        let centers = maskCorner.map { $0.offset(by: inset + filletRadius) }
+        let centerLine = gridLine - filletRadius
+        let left = fillet(along: centers, axis: \.y, crossing: centerLine)
+        let top = fillet(along: centers, axis: \.x, crossing: centerLine)
         return (left, top)
     }
 
-    private static func fillet(along centers: [EdgePoint], where coordinate: (CGPoint) -> Double, crosses value: Double) -> Fillet {
-        let index = centers.indices.dropLast().first { index in
-            let start = coordinate(centers[index].point), end = coordinate(centers[index + 1].point)
+    /// The fillet whose center is where `centers` crosses `value` on `axis`.
+    private static func fillet(
+        along centers: [EdgePoint],
+        axis: KeyPath<CGPoint, CGFloat>,
+        crossing value: Double
+    ) -> Fillet {
+        guard let index = centers.indices.dropLast().first(where: { index in
+            let start = centers[index].point[keyPath: axis]
+            let end = centers[index + 1].point[keyPath: axis]
             return (start - value) * (end - value) <= 0
-        } ?? 0
+        }) else {
+            preconditionFailure("The grid line at \(value + filletRadius) doesn't meet the mask's corner")
+        }
         let start = centers[index], end = centers[index + 1]
-        let startValue = coordinate(start.point), endValue = coordinate(end.point)
+        let startValue = start.point[keyPath: axis], endValue = end.point[keyPath: axis]
         let fraction = startValue == endValue ? 0 : (value - startValue) / (endValue - startValue)
         let center = start.interpolated(to: end, by: fraction)
         return Fillet(index: index, center: center.point, tangentPoint: center.offset(by: -filletRadius).point)
@@ -100,23 +114,36 @@ struct GridCorner {
 
     /// The control points of the mask's top left corner in units of its corner radius,
     /// from the left edge up to the top edge, as three cubic Bézier curves.
+    ///
+    /// These are Apple's continuous corner constants, the curve `UIBezierPath(roundedRect:)`
+    /// and `RoundedRectangle(style: .continuous)` draw.
     private static let continuousCorner: [[CGPoint]] = [
         [CGPoint(x: 0, y: 1.52866483), CGPoint(x: 0, y: 1.08849299), CGPoint(x: 0, y: 0.86840701), CGPoint(x: 0.07491100, y: 0.63149399)],
         [CGPoint(x: 0.07491100, y: 0.63149399), CGPoint(x: 0.16905899, y: 0.37282401), CGPoint(x: 0.37282392, y: 0.16905899), CGPoint(x: 0.63149399, y: 0.07491100)],
         [CGPoint(x: 0.63149399, y: 0.07491100), CGPoint(x: 0.86840689, y: 0), CGPoint(x: 1.08849323, y: 0), CGPoint(x: 1.52866483, y: 0)],
     ]
 
+    /// How many points each curve is sampled at, enough that the outline's straight
+    /// segments can't be told apart from the curve at 1024 pt.
     private static let pointsPerCurve = 40
 
-    /// Points along the mask's top left corner, from the left edge up to the top edge.
-    private static let maskCorner: [EdgePoint] = continuousCorner.flatMap { unitControls in
-        let controls = unitControls.map { CGPoint(x: $0.x * maskCornerRadius, y: $0.y * maskCornerRadius) }
-        return (0..<pointsPerCurve).map { step in
-            edgePoint(on: controls, at: Double(step) / Double(pointsPerCurve))
+    /// Points along the top left corner of a mask with the given corner radius, from the
+    /// left edge up to the top edge.
+    private static func maskCorner(radius: Double) -> [EdgePoint] {
+        let curves = continuousCorner.map { unitControls in
+            unitControls.map { CGPoint(x: $0.x * radius, y: $0.y * radius) }
         }
-    } + [edgePoint(on: continuousCorner[2].map { CGPoint(x: $0.x * maskCornerRadius, y: $0.y * maskCornerRadius) }, at: 1)]
+        let points = curves.flatMap { controls in
+            (0..<pointsPerCurve).map { step in
+                edgePoint(on: controls, at: Double(step) / Double(pointsPerCurve))
+            }
+        }
+        // Each curve's samples stop short of its end, so add the end of the last one.
+        return points + [edgePoint(on: curves[curves.count - 1], at: 1)]
+    }
 
-    /// The point at `t` on a cubic Bézier curve, facing left of the direction of travel.
+    /// The point at `t` on a cubic Bézier curve, with the normal to the left of the
+    /// direction of travel, which points into the icon because the corner runs clockwise.
     private static func edgePoint(on controls: [CGPoint], at t: Double) -> EdgePoint {
         let (p0, p1, p2, p3) = (controls[0], controls[1], controls[2], controls[3])
         let u = 1 - t

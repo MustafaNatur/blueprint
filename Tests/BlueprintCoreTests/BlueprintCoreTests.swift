@@ -156,8 +156,9 @@ import Testing
         let lineCount = grid.components(separatedBy: "<line ").count - 1
         let cornerCount = grid.components(separatedBy: "<path ").count - 1
         let innerLinesForFourSquaresEachWay = 2 * 3
+        let corners = 4
         #expect(lineCount == innerLinesForFourSquaresEachWay)
-        #expect(cornerCount == 4)
+        #expect(cornerCount == corners)
     }
 
     @Test func onlyTheMiddleGridLinesRunFromEdgeToEdge() {
@@ -167,12 +168,13 @@ import Testing
         #expect(!grid.contains("<line x1='256' y1='0'"))
     }
 
-    @Test func cornerOutlineTurnsIntoTheGridLines() throws {
-        let corner = GridCorner(gridLine: 256)
-        let start = corner.gridLineStart
-        #expect(start > GridCorner.inset && start < 256)
-        #expect(corner.pathData.hasPrefix("M\(SVG.number(start)) 256 "))
-        #expect(corner.pathData.hasSuffix(" 256 \(SVG.number(start))"))
+    @Test func cornerOutlineTurnsIntoTheGridLines() {
+        let gridLine = 256.0
+        let corner = GridCorner(gridLine: gridLine, maskCornerRadius: 266)
+        let start = SVG.number(corner.gridLineStart), line = SVG.number(gridLine)
+        #expect(corner.gridLineStart > GridCorner.inset && corner.gridLineStart < gridLine)
+        #expect(corner.pathData.hasPrefix("M\(start) \(line) "))
+        #expect(corner.pathData.hasSuffix(" \(line) \(start)"))
     }
 
     @Test func backgroundIsAGradientOfTheColors() {
