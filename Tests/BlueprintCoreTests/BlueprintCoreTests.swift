@@ -151,11 +151,28 @@ import Testing
 
     // MARK: - Paper
 
-    @Test func gridHasFourByFourSquares() {
+    @Test func gridHasFourByFourSquaresWithOutlinedCorners() {
         let grid = String(decoding: BlueprintPaper.grid(), as: UTF8.self)
         let lineCount = grid.components(separatedBy: "<line ").count - 1
-        let linesForFourSquaresEachWay = 2 * 5
-        #expect(lineCount == linesForFourSquaresEachWay)
+        let cornerCount = grid.components(separatedBy: "<path ").count - 1
+        let innerLinesForFourSquaresEachWay = 2 * 3
+        #expect(lineCount == innerLinesForFourSquaresEachWay)
+        #expect(cornerCount == 4)
+    }
+
+    @Test func onlyTheMiddleGridLinesRunFromEdgeToEdge() {
+        let grid = String(decoding: BlueprintPaper.grid(), as: UTF8.self)
+        #expect(grid.contains("<line x1='512' y1='0' x2='512' y2='1024'/>"))
+        #expect(grid.contains("<line x1='0' y1='512' x2='1024' y2='512'/>"))
+        #expect(!grid.contains("<line x1='256' y1='0'"))
+    }
+
+    @Test func cornerOutlineTurnsIntoTheGridLines() throws {
+        let corner = GridCorner(gridLine: 256)
+        let start = corner.gridLineStart
+        #expect(start > GridCorner.inset && start < 256)
+        #expect(corner.pathData.hasPrefix("M\(SVG.number(start)) 256 "))
+        #expect(corner.pathData.hasSuffix(" 256 \(SVG.number(start))"))
     }
 
     @Test func backgroundIsAGradientOfTheColors() {
