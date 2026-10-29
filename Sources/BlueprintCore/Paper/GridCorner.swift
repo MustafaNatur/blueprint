@@ -33,7 +33,8 @@ struct GridCorner {
     ///   continuous curve like the one `RoundedRectangle(style: .continuous)` draws.
     init(gridLine: Double, maskCornerRadius: Double) {
         let maskCorner = Self.maskCorner(radius: maskCornerRadius)
-        let (left, top) = Self.fillets(along: maskCorner, gridLine: gridLine)
+        let left = Self.fillet(along: maskCorner, gridLine: gridLine)
+        let top = left.mirrored(along: maskCorner)
         let outline = maskCorner.map { $0.offset(by: Self.inset) }
         // The points along the corner between the two fillets.
         let curve = outline[(left.index + 1)...top.index].map(\.point)
@@ -58,36 +59,29 @@ struct GridCorner {
         var center: CGPoint
         /// Where the fillet meets the curve along the corner.
         var tangentPoint: CGPoint
+
+        /// The same fillet on the other side of the corner, which is symmetric about
+        /// its diagonal, so its points run in the opposite order with x and y swapped.
+        func mirrored(along maskCorner: [EdgePoint]) -> Fillet {
+            func swapped(_ point: CGPoint) -> CGPoint { CGPoint(x: point.y, y: point.x) }
+            return Fillet(index: maskCorner.count - 2 - index, center: swapped(center), tangentPoint: swapped(tangentPoint))
+        }
     }
 
-    /// The fillets into the horizontal grid line on the left and the vertical one at the top.
+    /// The fillet into the horizontal grid line, on the left of the corner.
     ///
     /// A fillet's center is as far from the outline as from the grid line, so it lies on
     /// the mask's edge moved inward by the inset plus the fillet's radius.
-    private static func fillets(along maskCorner: [EdgePoint], gridLine: Double) -> (left: Fillet, top: Fillet) {
+    private static func fillet(along maskCorner: [EdgePoint], gridLine: Double) -> Fillet {
         let centers = maskCorner.map { $0.offset(by: inset + filletRadius) }
         let centerLine = gridLine - filletRadius
-        let left = fillet(along: centers, axis: \.y, crossing: centerLine)
-        let top = fillet(along: centers, axis: \.x, crossing: centerLine)
-        return (left, top)
-    }
-
-    /// The fillet whose center is where `centers` crosses `value` on `axis`.
-    private static func fillet(
-        along centers: [EdgePoint],
-        axis: KeyPath<CGPoint, CGFloat>,
-        crossing value: Double
-    ) -> Fillet {
         guard let index = centers.indices.dropLast().first(where: { index in
-            let start = centers[index].point[keyPath: axis]
-            let end = centers[index + 1].point[keyPath: axis]
-            return (start - value) * (end - value) <= 0
+            (centers[index].point.y - centerLine) * (centers[index + 1].point.y - centerLine) <= 0
         }) else {
-            preconditionFailure("The grid line at \(value + filletRadius) doesn't meet the mask's corner")
+            preconditionFailure("The grid line at \(gridLine) doesn't meet the mask's corner")
         }
         let start = centers[index], end = centers[index + 1]
-        let startValue = start.point[keyPath: axis], endValue = end.point[keyPath: axis]
-        let fraction = startValue == endValue ? 0 : (value - startValue) / (endValue - startValue)
+        let fraction = (centerLine - start.point.y) / (end.point.y - start.point.y)
         let center = start.interpolated(to: end, by: fraction)
         return Fillet(index: index, center: center.point, tangentPoint: center.offset(by: -filletRadius).point)
     }
@@ -124,8 +118,8 @@ struct GridCorner {
     ]
 
     /// How many points each curve is sampled at, enough that the outline's straight
-    /// segments can't be told apart from the curve at 1024 pt.
-    private static let pointsPerCurve = 40
+    /// segments stay within a quarter of a point of the curve at 1024 pt.
+    private static let pointsPerCurve = 10
 
     /// Points along the top left corner of a mask with the given corner radius, from the
     /// left edge up to the top edge.
