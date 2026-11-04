@@ -20,13 +20,13 @@ import Testing
         }
     }
 
-    /// A silhouette finder that always returns the same mask, standing in for Vision.
+    /// A silhouette finder that always returns the same mask, standing in for the icon's colors.
     private struct FixedSilhouette: SilhouetteFinder {
         let mask: AlphaMask
         func silhouette(of icon: RGBAImage) throws -> AlphaMask { mask }
     }
 
-    /// A soft-edged square, like Vision's scaled-up mask.
+    /// A soft-edged square, like the mask of an anti-aliased shape.
     private func softSquare(from start: Int, to end: Int) -> AlphaMask {
         AlphaMask(width: side, height: side) { x, y in
             let inside = (start..<end).contains(x) && (start..<end).contains(y)
@@ -62,17 +62,6 @@ import Testing
         let lineArt = try tracer.lineArt(of: flatIcon())
 
         #expect(value(of: lineArt, x: 64, y: 128) == 255)
-    }
-
-    @Test func fallsBackToTheNextFinderWhenTheFirstFindsNothing() throws {
-        let nothing = FixedSilhouette(mask: softSquare(from: 0, to: 0))
-        let foreground = FixedSilhouette(mask: softSquare(from: 64, to: 192))
-        let finders = FirstSilhouette(finders: [nothing, foreground])
-        let tracer = FlatIconTracer(lineWidth: 6, silhouetteFinder: finders)
-
-        let lineArt = try tracer.lineArt(of: flatIcon())
-
-        #expect(value(of: lineArt, x: 66, y: 128) > 200)
     }
 
     @Test func iconWithoutForegroundIsAnError() throws {

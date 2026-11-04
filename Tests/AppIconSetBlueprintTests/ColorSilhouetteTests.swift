@@ -26,7 +26,7 @@ import Testing
 
     // MARK: - Silhouettes
 
-    /// The icon Vision couldn't lift: shapes that run off the edge of a red background.
+    /// Shapes that run off the edge of a red background, which Vision's subject lifting couldn't find.
     @Test func findsShapesThatRunOffTheEdge() throws {
         let icon = try icon {
             red.setFill()

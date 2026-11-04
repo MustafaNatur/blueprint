@@ -3,7 +3,7 @@ import CoreImage
 /// How strongly each pixel belongs to a shape, from 0 to 255, stored top row first.
 ///
 /// Both formats trace with masks: an `.icon` layer's silhouette comes from its image's
-/// transparency, a flat icon's from Vision's subject lifting. Either way, ``outlined(width:)``
+/// transparency, a flat icon's from its colors. Either way, ``outlined(width:)``
 /// turns the silhouette into the white line work of the blueprint.
 package struct AlphaMask {
     package let width: Int
