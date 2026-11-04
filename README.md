@@ -79,7 +79,7 @@ blueprint AppIcon.icon --badge "RC 2.4.1" --color "#A78BFA,#8B5CF6,#6D28D9" -o A
 
 ## Good to know
 
-- **How a flat `.appiconset` icon is traced.** A flat image has no layers, so blueprint separates what's in front from the background with Vision's subject lifting, the same as "Lift Subject" in Photos, and outlines it as one shape.
+- **How a flat `.appiconset` icon is traced.** A flat image has no layers, so blueprint learns the background from the icon's edge, as one color or a smooth gradient, and outlines everything that differs from it. Shapes that run off the edge, and the transparent margin and shadow around a macOS icon, are handled too. An icon whose background is busy, like a photo or a pattern, comes out with more lines than you might want.
 - **Every slot is kept.** Dark and tinted variants, and every size of a macOS icon set, get the blueprint too, so it looks the same everywhere.
 - Running `blueprint` again replaces the blueprint it drew before. It never overwrites any other icon.
 

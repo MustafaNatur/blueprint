@@ -2,12 +2,11 @@ import BlueprintCore
 
 /// Redraws a flat icon image as white line work: the outline of its foreground.
 ///
-/// Vision's mask is computed at a lower resolution and scaled up, so its edge is soft.
-/// It's firmed up before outlining, so the outline comes out as crisp as an `.icon`
-/// layer's.
+/// The silhouette's edge is soft where the icon's shapes are anti-aliased. It's firmed up
+/// before outlining, so the outline comes out as crisp as an `.icon` layer's.
 struct FlatIconTracer {
     var lineWidth: Double
-    var silhouetteFinder: any SilhouetteFinder = SubjectSilhouette()
+    var silhouetteFinder: any SilhouetteFinder = ColorSilhouette()
 
     private let edgeLevel = 0.5
     private let edgeSoftness = 0.1

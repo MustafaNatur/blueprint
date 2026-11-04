@@ -20,13 +20,13 @@ import Testing
         }
     }
 
-    /// A silhouette finder that always returns the same mask, standing in for Vision.
+    /// A silhouette finder that always returns the same mask, standing in for the icon's colors.
     private struct FixedSilhouette: SilhouetteFinder {
         let mask: AlphaMask
         func silhouette(of icon: RGBAImage) throws -> AlphaMask { mask }
     }
 
-    /// A soft-edged square, like Vision's scaled-up mask.
+    /// A soft-edged square, like the mask of an anti-aliased shape.
     private func softSquare(from start: Int, to end: Int) -> AlphaMask {
         AlphaMask(width: side, height: side) { x, y in
             let inside = (start..<end).contains(x) && (start..<end).contains(y)

@@ -11,7 +11,7 @@ struct FlatBlueprintPainter {
     var tracer: FlatIconTracer
 
     /// Creates a painter for the style, tracing with `tracer`, or by default with the
-    /// style's line width and Vision's subject lifting.
+    /// style's line width and the icon's colors.
     init(style: BlueprintStyle, tracer: FlatIconTracer? = nil) {
         self.style = style
         self.tracer = tracer ?? FlatIconTracer(lineWidth: style.lineWidth)

@@ -2,7 +2,7 @@ import AppKit
 import BlueprintCore
 
 /// Asset catalog `.appiconset` folders: flat icon images, redrawn by separating the
-/// foreground from the background with Vision.
+/// foreground from the background by their colors.
 ///
 /// The blueprint keeps every slot of the original, including dark and tinted ones,
 /// so it looks the same in every appearance and fits every platform the original did.

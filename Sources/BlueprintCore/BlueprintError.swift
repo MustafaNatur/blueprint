@@ -48,7 +48,7 @@ public enum BlueprintError: Error, LocalizedError, Equatable {
     /// The associated value is the name of the icon set.
     case emptyIconSet(String)
 
-    /// Vision found nothing in front of the background of a flat icon.
+    /// Nothing in a flat icon stands out from its background.
     case noForeground
 
     /// Core Image or Image I/O failed to process a layer.
