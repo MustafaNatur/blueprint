@@ -7,7 +7,7 @@ import BlueprintCore
 /// layer's.
 struct FlatIconTracer {
     var lineWidth: Double
-    var silhouetteFinder: any SilhouetteFinder = SubjectSilhouette()
+    var silhouetteFinder: any SilhouetteFinder = FirstSilhouette(finders: [ColorSilhouette(), SubjectSilhouette()])
 
     private let edgeLevel = 0.5
     private let edgeSoftness = 0.1

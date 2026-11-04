@@ -26,3 +26,18 @@ struct SubjectSilhouette: SilhouetteFinder {
         return AlphaMask.rendering(maskImage, width: icon.width, height: icon.height)
     }
 }
+
+/// Tries each finder in turn and keeps the first silhouette that isn't empty.
+struct FirstSilhouette: SilhouetteFinder {
+    var finders: [any SilhouetteFinder]
+
+    func silhouette(of icon: RGBAImage) throws -> AlphaMask {
+        for finder in finders {
+            let silhouette = try finder.silhouette(of: icon)
+            if !silhouette.isEmpty {
+                return silhouette
+            }
+        }
+        return AlphaMask(width: icon.width, height: icon.height) { _, _ in 0 }
+    }
+}

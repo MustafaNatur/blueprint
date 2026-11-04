@@ -64,6 +64,17 @@ import Testing
         #expect(value(of: lineArt, x: 64, y: 128) == 255)
     }
 
+    @Test func fallsBackToTheNextFinderWhenTheFirstFindsNothing() throws {
+        let nothing = FixedSilhouette(mask: softSquare(from: 0, to: 0))
+        let foreground = FixedSilhouette(mask: softSquare(from: 64, to: 192))
+        let finders = FirstSilhouette(finders: [nothing, foreground])
+        let tracer = FlatIconTracer(lineWidth: 6, silhouetteFinder: finders)
+
+        let lineArt = try tracer.lineArt(of: flatIcon())
+
+        #expect(value(of: lineArt, x: 66, y: 128) > 200)
+    }
+
     @Test func iconWithoutForegroundIsAnError() throws {
         let nothing = FixedSilhouette(mask: softSquare(from: 0, to: 0))
         let tracer = FlatIconTracer(lineWidth: 6, silhouetteFinder: nothing)
