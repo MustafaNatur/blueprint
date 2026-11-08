@@ -85,12 +85,12 @@ A layer without glass hides what's behind it, and so does its outline: the lines
 <p align="center">
   <img src="docs/icon-3.png" width="160" alt="An app icon with a striped frame behind a sheet">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/debug-icon-3-before.png" width="160" alt="Its blueprint with every outline drawn, the stripes crossing the sheet">
+  <img src="docs/debug-icon-3.png" width="160" alt="Its blueprint with the stripes stopping at the sheet">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/debug-icon-3.png" width="160" alt="Its blueprint with the stripes stopping at the sheet, without grid corners">
+  <img src="docs/debug-icon-3-no-corners.png" width="160" alt="Its blueprint without grid corners">
 </p>
 
-<p align="center"><sub>The icon, every outline drawn, and the sheet hiding the stripes behind it.</sub></p>
+<p align="center"><sub>The icon, its blueprint, and the blueprint with <code>--no-grid-corners</code>.</sub></p>
 
 ## Good to know
 
