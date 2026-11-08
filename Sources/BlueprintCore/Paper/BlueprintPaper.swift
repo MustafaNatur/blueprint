@@ -36,17 +36,18 @@ package enum BlueprintPaper {
     /// As in Xcode's icon, each corner square is outlined along the icon's rounded corner,
     /// and the grid lines next to the corners end where they turn into those outlines.
     /// The other lines never meet a corner square, so they run from edge to edge.
-    package static func grid() -> Data {
+    /// Without corners every line runs from edge to edge.
+    package static func grid(corners showsCorners: Bool = true) -> Data {
         let corner = GridCorner(gridLine: firstGridLine, maskCornerRadius: canvasSize * maskCornerRadiusRatio)
         let lines = innerGridLinePositions.flatMap { position in
-            let meetsCorners = position == firstGridLine || position == lastGridLine
+            let meetsCorners = showsCorners && (position == firstGridLine || position == lastGridLine)
             let start = meetsCorners ? corner.gridLineStart : 0
             let end = canvasSize - start
             let vertical = gridLine(from: (position, start), to: (position, end))
             let horizontal = gridLine(from: (start, position), to: (end, position))
             return [vertical, horizontal]
         }
-        let corners = CornerMirror.allCases.map { mirror in
+        let corners = !showsCorners ? [] : CornerMirror.allCases.map { mirror in
             gridOutline(corner.pathData, transform: mirror.transform)
         }
         let strokes = (lines + corners).joined(separator: "\n")

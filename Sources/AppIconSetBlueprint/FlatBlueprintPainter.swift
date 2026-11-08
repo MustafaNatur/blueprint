@@ -46,7 +46,7 @@ struct FlatBlueprintPainter {
     /// The background, then the grid if the style shows one, ready to draw.
     private func paperImages() throws -> [NSImage] {
         let background = BlueprintPaper.background(colors: style.backgroundColors)
-        let grid = style.showsGrid ? BlueprintPaper.grid() : nil
+        let grid = style.showsGrid ? BlueprintPaper.grid(corners: style.showsGridCorners) : nil
         let svgs = [background] + (grid.map { [$0] } ?? [])
         return try svgs.map { svg in
             guard let image = NSImage(data: svg) else { throw BlueprintError.imageProcessingFailed }

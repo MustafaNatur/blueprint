@@ -25,6 +25,10 @@ public struct BlueprintStyle: Sendable {
     /// A Boolean value that indicates whether the background shows a grid.
     public var showsGrid: Bool
 
+    /// A Boolean value that indicates whether the grid outlines its corner squares
+    /// along the icon's rounded corners, as in Xcode's icon.
+    public var showsGridCorners: Bool
+
     /// The label drawn in the bottom right corner, or `nil` for no badge.
     ///
     /// The badge's text and border take the last background color, so the badge matches
@@ -43,11 +47,12 @@ public struct BlueprintStyle: Sendable {
     ///     with or without a leading `#`. Defaults to ``xcodeBackgroundColors``.
     ///   - lineWidth: The outline width in icon points. Defaults to `9`.
     ///   - showsGrid: Whether the background shows a grid. Defaults to `true`.
+    ///   - showsGridCorners: Whether the grid outlines its corner squares. Defaults to `true`.
     ///   - badge: The label drawn in the bottom right corner. Defaults to no badge.
     /// - Throws: ``BlueprintError/invalidColor(_:)`` when `backgroundColors` is empty or
     ///   holds a color that isn't a `#RRGGBB` hex string.
     public init(backgroundColors: [String] = Self.xcodeBackgroundColors, lineWidth: Double = 9, showsGrid: Bool = true,
-                badge: BlueprintBadge? = nil) throws {
+                showsGridCorners: Bool = true, badge: BlueprintBadge? = nil) throws {
         guard !backgroundColors.isEmpty else { throw BlueprintError.invalidColor("") }
         let hexColors = backgroundColors.map { $0.hasPrefix("#") ? $0 : "#" + $0 }
         if let invalidColor = hexColors.first(where: { !Self.isHexColor($0) }) {
@@ -57,6 +62,7 @@ public struct BlueprintStyle: Sendable {
         self.backgroundColors = hexColors
         self.lineWidth = lineWidth
         self.showsGrid = showsGrid
+        self.showsGridCorners = showsGridCorners
         self.badge = badge
     }
 

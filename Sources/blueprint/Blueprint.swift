@@ -52,6 +52,9 @@ struct Blueprint: ParsableCommand {
     @Flag(inversion: .prefixedNo, help: "Draw the grid behind the drawing.")
     var grid = true
 
+    @Flag(inversion: .prefixedNo, help: "Outline the grid's corner squares along the icon's rounded corners.")
+    var gridCorners = true
+
     @Flag(inversion: .prefixedNo, help: "Open the result: .icon in Icon Composer, .appiconset in Finder.")
     var open = true
 
@@ -104,7 +107,7 @@ struct Blueprint: ParsableCommand {
     private func style() throws -> BlueprintStyle {
         let backgroundColors = color.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         let blueprintBadge = try badge.map(BlueprintBadge.init(text:))
-        return try BlueprintStyle(backgroundColors: backgroundColors, lineWidth: lineWidth, showsGrid: grid, badge: blueprintBadge)
+        return try BlueprintStyle(backgroundColors: backgroundColors, lineWidth: lineWidth, showsGrid: grid, showsGridCorners: gridCorners, badge: blueprintBadge)
     }
 
     // MARK: - Showing the Result

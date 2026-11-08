@@ -65,6 +65,7 @@ Then set it as the app icon of your Debug configuration in Xcode: **Primary App 
 | `--line-width` | `9` | Outline width. |
 | `--badge` | | Text in a badge in the bottom right corner, such as `DEV` or `BETA`. Long text wraps onto more lines. |
 | `--no-grid` | | Leaves out the grid lines. |
+| `--no-grid-corners` | | Lets the grid lines run from edge to edge instead of outlining the corner squares. |
 | `--no-open` | | Doesn't open the result. |
 
 ## Badges
@@ -81,6 +82,7 @@ blueprint AppIcon.icon --badge "RC 2.4.1" --color "#A78BFA,#8B5CF6,#6D28D9" -o A
 
 - **How a flat `.appiconset` icon is traced.** A flat image has no layers, so blueprint separates what's in front from the background with Vision's subject lifting, the same as "Lift Subject" in Photos, and outlines it as one shape.
 - **Every slot is kept.** Dark and tinted variants, and every size of a macOS icon set, get the blueprint too, so it looks the same everywhere.
+- **Layers in front hide the lines behind them.** Where a layer without glass is opaque, the outlines of the layers behind it stop, as in the original. Glass layers are see-through and hide nothing.
 - Running `blueprint` again replaces the blueprint it drew before. It never overwrites any other icon.
 
 ## License

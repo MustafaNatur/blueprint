@@ -25,9 +25,11 @@ struct LayerTracer {
     /// - Parameters:
     ///   - imageData: The layer image, in any format `NSImage` reads, such as SVG or PNG.
     ///   - name: The image's file name, used in error messages.
+    ///   - cover: Draws what's in front of the layer into a canvas of the image's traced
+    ///     size; the outline stops wherever that is opaque. `nil` when nothing is in front.
     /// - Throws: ``BlueprintError/unreadableLayerImage(_:)`` when the data isn't an
     ///   image, or ``BlueprintError/imageProcessingFailed`` when tracing fails.
-    func trace(_ imageData: Data, named name: String) throws -> Data {
+    func trace(_ imageData: Data, named name: String, cover: ((CGContext, CGSize) -> Void)? = nil) throws -> Data {
         guard let image = NSImage(data: imageData), image.size.width > 0, image.size.height > 0 else {
             throw BlueprintError.unreadableLayerImage(name)
         }
@@ -36,7 +38,13 @@ struct LayerTracer {
         let pixelHeight = pixels(size.height)
 
         let picture = try RGBAImage(drawing: image, width: pixelWidth, height: pixelHeight)
-        let outline = try picture.alpha.outlined(width: lineWidthInPixels)
+        var outline = try picture.alpha.outlined(width: lineWidthInPixels)
+        if let cover {
+            let covered = try RGBAImage(width: pixelWidth, height: pixelHeight) { context in
+                cover(context, CGSize(width: pixelWidth, height: pixelHeight))
+            }
+            outline = outline.cutting(covered.alpha)
+        }
 
         let png = try outline.whiteImage().pngData()
         let imageElement = SVG.image(png: png, width: size.width, height: size.height)
@@ -49,7 +57,7 @@ struct LayerTracer {
     ///
     /// Icon Composer places bitmaps one pixel per point, whatever resolution the file
     /// claims, so a PNG saved at 144 dpi keeps its full pixel size.
-    private static func pointSize(of image: NSImage) -> CGSize {
+    static func pointSize(of image: NSImage) -> CGSize {
         guard let bitmap = image.representations.first as? NSBitmapImageRep else { return image.size }
         return CGSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
     }
