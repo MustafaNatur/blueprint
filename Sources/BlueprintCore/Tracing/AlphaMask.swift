@@ -45,9 +45,23 @@ package struct AlphaMask {
         return AlphaMask(width: width, height: height, pixels: outlinePixels)
     }
 
+    /// Returns this mask with everything the other mask covers taken away.
+    ///
+    /// A layer in front of another hides its lines: where the front layer is opaque, the
+    /// outline behind it stops.
+    package func cutting(_ cover: AlphaMask) -> AlphaMask {
+        let cutPixels = zip(pixels, cover.pixels).map { shape, covered in
+            UInt8(Int(shape) * (255 - Int(covered)) / 255)
+        }
+        return AlphaMask(width: width, height: height, pixels: cutPixels)
+    }
+
     // MARK: - Reshaping
 
     /// Returns the mask shrunk inward by the given radius, in pixels.
+    ///
+    /// A shape running off the image's edge continues beyond it, so the edge of the
+    /// image isn't an edge of the shape and gets no outline.
     package func shrunk(by radius: Double) throws -> AlphaMask {
         try filtered("CIMorphologyMinimum", radius: radius)
     }
@@ -88,7 +102,7 @@ package struct AlphaMask {
 
     private func filtered(_ filterName: String, radius: Double) throws -> AlphaMask {
         let gray = try grayImage()
-        let input = CIImage(cgImage: gray)
+        let input = CIImage(cgImage: gray).clampedToExtent()
         let filter = CIFilter(name: filterName, parameters: [kCIInputImageKey: input, kCIInputRadiusKey: radius])
         guard let output = filter?.outputImage else { throw BlueprintError.imageProcessingFailed }
         return Self.rendering(output, width: width, height: height)

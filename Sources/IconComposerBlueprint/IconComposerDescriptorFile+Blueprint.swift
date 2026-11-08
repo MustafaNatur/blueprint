@@ -1,5 +1,5 @@
+import AppKit
 import BlueprintCore
-import Foundation
 import IconKit
 
 extension IconComposerDescriptorFile {
@@ -62,44 +62,78 @@ extension IconComposerDescriptorFile {
     }
 
     /// Returns the original groups drawn matte, with their layers showing outlines.
-    private func drawingGroups(showing outlineFileNames: [String: String]) -> [IconGroup] {
+    private func drawingGroups(showing outlineFileNames: OutlineFileNames) -> [IconGroup] {
         document.groups.enumerated().map { index, group in
             let fallbackName = index == 0 ? "Drawing" : "Drawing \(index + 1)"
-            return group.outlined(using: outlineFileNames, fallbackName: fallbackName)
+            let layerOutlines = group.layers.indices.map { outlineFileNames.layers[LayerIndex(group: index, layer: $0)] }
+            return group.outlined(layerOutlines: layerOutlines, variantOutlines: outlineFileNames.variants, fallbackName: fallbackName)
         }
     }
 
-    /// Returns the traced outline of every image, keyed by the outline's file name.
-    private func outlineImages(named outlineFileNames: [String: String], lineWidth: Double) throws -> [String: Data] {
-        try outlineFileNames.reduce(into: [:]) { outlines, names in
-            let (imageName, outlineFileName) = names
+    /// Returns the traced outline of every layer and of every image shown only in an
+    /// appearance variant, keyed by the outline's file name.
+    ///
+    /// A layer's outline stops wherever a shown layer without glass in front of it is
+    /// opaque, the way the original hides what's behind it. Variant images aren't cut.
+    private func outlineImages(named outlineFileNames: OutlineFileNames, lineWidth: Double) throws -> [String: Data] {
+        let placedLayers = try placedLayers()
+        var outlines: [String: Data] = [:]
+        for (index, placed) in placedLayers.enumerated() {
+            guard let outlineFileName = outlineFileNames.layers[placed.index] else { continue }
+            let inFront = placedLayers[..<index].filter(\.covers)
+            let tracer = LayerTracer(lineWidth: lineWidth, layerScale: largestScale(of: placed.imageName))
+            let cover: ((CGContext, CGSize) -> Void)? = inFront.isEmpty ? nil : { _, pixelSize in
+                placed.draw(inFront, into: pixelSize)
+            }
+            outlines[outlineFileName] = try tracer.trace(placed.imageData, named: placed.imageName, cover: cover)
+        }
+        for (imageName, outlineFileName) in outlineFileNames.variants {
             guard let image = assets[imageName] else { throw BlueprintError.missingLayerImage(imageName) }
-            let layerScale = largestScale(of: imageName)
-            let tracer = LayerTracer(lineWidth: lineWidth, layerScale: layerScale)
+            let tracer = LayerTracer(lineWidth: lineWidth, layerScale: largestScale(of: imageName))
             outlines[outlineFileName] = try tracer.trace(image, named: imageName)
         }
+        return outlines
     }
 
-    /// Returns the file name of each image's outline, keyed by the image's own name.
-    ///
-    /// An outline is named after the first layer that shows its image, so the files in
-    /// `Assets` match the layer list; images used only in appearance variants keep
-    /// their own names.
-    private func outlineFileNames() -> [String: String] {
-        let layerImages: [(imageName: String, title: String)] = allLayers.compactMap { layer in
-            guard let imageName = layer.imageName else { return nil }
-            let title = layer.name ?? imageName.withoutExtension
-            return (imageName, title)
+    /// Returns every layer that shows an image, front to back, placed on the canvas.
+    private func placedLayers() throws -> [PlacedLayer] {
+        var placedLayers: [PlacedLayer] = []
+        for (groupIndex, group) in document.groups.enumerated() {
+            for (layerIndex, layer) in group.layers.enumerated() {
+                guard let imageName = layer.imageName else { continue }
+                guard let imageData = assets[imageName] else { throw BlueprintError.missingLayerImage(imageName) }
+                guard let image = NSImage(data: imageData) else { throw BlueprintError.unreadableLayerImage(imageName) }
+                placedLayers.append(PlacedLayer(
+                    index: LayerIndex(group: groupIndex, layer: layerIndex),
+                    imageName: imageName,
+                    imageData: imageData,
+                    image: image,
+                    frame: PlacedLayer.frame(of: image, at: layer.position ?? .identity),
+                    opacity: (layer.opacity ?? 1) * (group.opacity ?? 1),
+                    covers: layer.glass == false && layer.hidden != true && group.hidden != true
+                ))
+            }
         }
-        let allImages = referencedImageNames.sorted().map { imageName in
-            (imageName: imageName, title: imageName.withoutExtension)
-        }
-        let titledImages = layerImages + allImages
+        return placedLayers
+    }
 
+    /// Returns the file name of each layer's outline and of each variant image's outline.
+    ///
+    /// A layer's outline is named after the layer, so the files in `Assets` match the
+    /// layer list; images used only in appearance variants keep their own names.
+    private func outlineFileNames() -> OutlineFileNames {
         var fileNames = UniqueFileNames(reserving: [Self.gridFileName, Self.backgroundFileName, Self.badgeFileName])
-        var outlineFileNames: [String: String] = [:]
-        for (imageName, title) in titledImages where outlineFileNames[imageName] == nil {
-            outlineFileNames[imageName] = fileNames.next(for: title)
+        var outlineFileNames = OutlineFileNames()
+        for (groupIndex, group) in document.groups.enumerated() {
+            for (layerIndex, layer) in group.layers.enumerated() {
+                guard let imageName = layer.imageName else { continue }
+                let title = layer.name ?? imageName.withoutExtension
+                outlineFileNames.layers[LayerIndex(group: groupIndex, layer: layerIndex)] = fileNames.next(for: title)
+            }
+        }
+        let variantImageNames = Set(allLayers.flatMap { ($0.imageNameSpecializations ?? []).map(\.value) })
+        for imageName in variantImageNames.sorted() {
+            outlineFileNames.variants[imageName] = fileNames.next(for: imageName.withoutExtension)
         }
         return outlineFileNames
     }
@@ -129,7 +163,7 @@ extension IconComposerDescriptorFile {
         let background = BlueprintPaper.background(colors: style.backgroundColors)
         var images = [backgroundFileName: background]
         if style.showsGrid {
-            images[gridFileName] = BlueprintPaper.grid()
+            images[gridFileName] = BlueprintPaper.grid(corners: style.showsGridCorners)
         }
         return images
     }
@@ -205,8 +239,8 @@ private extension IconGroup {
     }
 
     /// Returns this group drawn matte, with its layers showing their outlines.
-    func outlined(using outlineFileNames: [String: String], fallbackName: String) -> IconGroup {
-        let outlinedLayers = layers.map { $0.outlined(using: outlineFileNames) }
+    func outlined(layerOutlines: [String?], variantOutlines: [String: String], fallbackName: String) -> IconGroup {
+        let outlinedLayers = zip(layers, layerOutlines).map { $0.outlined(as: $1, variantOutlines: variantOutlines) }
         return .matte(
             id: id,
             name: name ?? fallbackName,
@@ -221,10 +255,9 @@ private extension IconGroup {
 private extension IconLayer {
     /// Returns this layer showing its image's outline, keeping only its name, visibility
     /// and position. Opacity, blend mode, fill and glass are left out.
-    func outlined(using outlineFileNames: [String: String]) -> IconLayer {
-        let outlineFileName = imageName.flatMap { outlineFileNames[$0] }
+    func outlined(as outlineFileName: String?, variantOutlines: [String: String]) -> IconLayer {
         let outlineVariants = imageNameSpecializations?.map { variant in
-            let variantOutline = outlineFileNames[variant.value] ?? variant.value
+            let variantOutline = variantOutlines[variant.value] ?? variant.value
             return Specialization(appearance: variant.appearance, idiom: variant.idiom, value: variantOutline)
         }
         return IconLayer(
@@ -251,5 +284,62 @@ private extension IconLayer {
         let scale = position?.scale ?? 1
         let variantScales = (positionSpecializations ?? []).map(\.value.scale)
         return [scale] + variantScales
+    }
+}
+
+// MARK: - Layers in Front
+
+/// Where a layer sits in the icon: its group and its place in the group.
+private struct LayerIndex: Hashable {
+    let group: Int
+    let layer: Int
+}
+
+/// The outline file names of a blueprint: one per layer, and one per image shown only
+/// in an appearance variant.
+private struct OutlineFileNames {
+    var layers: [LayerIndex: String] = [:]
+    var variants: [String: String] = [:]
+}
+
+/// A layer that shows an image, with the image's frame on the canvas.
+private struct PlacedLayer {
+    let index: LayerIndex
+    let imageName: String
+    let imageData: Data
+    let image: NSImage
+    /// The image's frame on the canvas in points, top left origin.
+    let frame: CGRect
+    let opacity: Double
+    /// Whether the layer hides what's behind it: it's shown and isn't glass, which
+    /// Icon Composer draws see-through.
+    let covers: Bool
+
+    /// Icon Composer centers an image on the canvas, scales it and then moves it.
+    static func frame(of image: NSImage, at position: IconPosition) -> CGRect {
+        let size = LayerTracer.pointSize(of: image)
+        let width = size.width * position.scale
+        let height = size.height * position.scale
+        let canvas = BlueprintPaper.canvasSize
+        return CGRect(
+            x: (canvas - width) / 2 + position.translationX,
+            y: (canvas - height) / 2 + position.translationY,
+            width: width,
+            height: height
+        )
+    }
+
+    /// Draws the layers into the current context, which holds this layer's image at
+    /// the given pixel size.
+    func draw(_ layers: [PlacedLayer], into pixelSize: CGSize) {
+        let pixelsPerPoint = pixelSize.width / frame.width
+        for layer in layers {
+            let width = layer.frame.width * pixelsPerPoint
+            let height = layer.frame.height * pixelsPerPoint
+            let x = (layer.frame.minX - frame.minX) * pixelsPerPoint
+            let top = (layer.frame.minY - frame.minY) * pixelsPerPoint
+            let rect = CGRect(x: x, y: pixelSize.height - top - height, width: width, height: height)
+            layer.image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: layer.opacity)
+        }
     }
 }

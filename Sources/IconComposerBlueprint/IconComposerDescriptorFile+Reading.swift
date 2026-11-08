@@ -61,8 +61,10 @@ extension IconComposerDescriptorFile {
     // MARK: - Materials
 
     /// The `icon.json` properties that describe materials rather than layout.
+    ///
+    /// Glass and opacity are kept: they tell whether a layer hides what's behind it.
     private static let materialProperties: Set<String> = [
-        "fill", "shadow", "translucency", "blend-mode", "lighting", "specular", "glass", "opacity", "blur-material",
+        "fill", "shadow", "translucency", "blend-mode", "lighting", "specular", "blur-material",
     ]
 
     /// Returns the JSON value with every material property and its specializations removed, at any depth.
