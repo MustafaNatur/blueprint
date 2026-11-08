@@ -87,10 +87,10 @@ A layer without glass hides what's behind it, and so does its outline: the lines
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="docs/debug-icon-3.png" width="160" alt="Its blueprint with the stripes stopping at the sheet">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/debug-icon-3-no-corners.png" width="160" alt="Its blueprint without grid corners">
+  <img src="docs/debug-icon-3-badge.png" width="160" alt="Its blueprint in orange with a BETA badge, without grid corners">
 </p>
 
-<p align="center"><sub>The icon, its blueprint, and the blueprint with <code>--no-grid-corners</code>.</sub></p>
+<p align="center"><sub>The icon, its blueprint, and one with <code>--no-grid-corners --badge BETA</code> in orange.</sub></p>
 
 ## Good to know
 
