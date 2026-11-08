@@ -78,6 +78,20 @@ blueprint AppIcon.icon --badge BETA --color "#FFB74D,#FB8C00,#E65100" -o AppIcon
 blueprint AppIcon.icon --badge "RC 2.4.1" --color "#A78BFA,#8B5CF6,#6D28D9" -o AppIconRC.icon
 ```
 
+## Layers in front
+
+A layer without glass hides what's behind it, and so does its outline: the lines of the layers behind stop at its edge. Shapes that run off the canvas, like these stripes, stay open along the edge. With `--no-grid-corners` the grid lines run straight through.
+
+<p align="center">
+  <img src="docs/icon-3.png" width="160" alt="An app icon with a striped frame behind a sheet">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/debug-icon-3-before.png" width="160" alt="Its blueprint with every outline drawn, the stripes crossing the sheet">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/debug-icon-3.png" width="160" alt="Its blueprint with the stripes stopping at the sheet, without grid corners">
+</p>
+
+<p align="center"><sub>The icon, every outline drawn, and the sheet hiding the stripes behind it.</sub></p>
+
 ## Good to know
 
 - **How a flat `.appiconset` icon is traced.** A flat image has no layers, so blueprint separates what's in front from the background with Vision's subject lifting, the same as "Lift Subject" in Photos, and outlines it as one shape.
